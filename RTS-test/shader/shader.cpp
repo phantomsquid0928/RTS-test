@@ -41,11 +41,23 @@ GLuint shader::createShaderProgram(const char* vcode, const char* fcode) {
 	glDeleteShader(fragmentShader);
 	return shaderProgram;
 }
+
+GLuint shader::changeFshader(const char* fcode) { //not perfect
+	GLuint fragmentShader = compile(GL_FRAGMENT_SHADER, fcode);
+
+	glAttachShader(shaderProgram, fragmentShader);
+
+	return shaderProgram;
+}
 string shader::readFile(string filepath) {
 	ifstream file(filepath);
 	stringstream buffer;
 	buffer << file.rdbuf();
 	return buffer.str();
+}
+
+void shader::create() {
+
 }
 /// <summary>
 /// childs should override these funcs below...
@@ -58,4 +70,10 @@ void shader::render() {
 /// </summary>
 void shader::update() {
 	cout << "non";
+}
+void shader::updateAll() {
+
+}
+void shader::destroy() {
+
 }

@@ -7,8 +7,9 @@ public:
 	object(int x, int y);
 	vec4 display2world(vec4 mouse);
 	vec4 world2display(vec4 world);
-	void changepos(int newx, int newy);
+	void changepos(vec2 newpos);
 private:
-	int posx, posy;
+
+	vec2 position;
 };
 

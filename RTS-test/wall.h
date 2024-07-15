@@ -3,11 +3,10 @@
 #include "headers.hpp"
 #include "shader/shader.h"
 
-class block : public shader
+class wall : public shader
 {
 public:
-	block();
-	block(const vector<array<int, 2>>& positions);
+	wall();
 	void render();
 	//void update();
 	//void delta(int x, int y);
@@ -18,6 +17,5 @@ private:
 	int size;
 	vector<float> vertices;
 	vector<unsigned int> indices;
-	const vector<array<int, 2>>* positions;
 };
 

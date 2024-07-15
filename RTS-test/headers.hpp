@@ -7,11 +7,15 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <GLM/ext.hpp>
 #include <vector>
 #include <algorithm>
 #include <iterator>
 #include <unordered_map>
 #include <array>
+#include <bitset>
+#include <queue>
+#include <functional>
 
 using namespace std;
 using namespace glm;
@@ -26,7 +30,7 @@ static volatile double nowtime;
 static volatile double prevtime;
 
 typedef enum keys : int {
-	ESC, S, LCTRL, n1, n2, n3, n4
+	ESC, S, LCTRL, n1, n2, n3, n4, LALT
 }keys;
 
 typedef enum status : int {
@@ -42,9 +46,16 @@ namespace input {
 	extern int mousey;
 	extern int clickposx;
 	extern int clickposy;
+	extern double timeold;
+	extern double timenow;
 	extern status mouse_status[sizeof(mousemotion)];
 }
 namespace mapinfo {
-	extern int arr[sizey / cellsize][sizex / cellsize];
+	//extern int arr[sizey / cellsize][sizex / cellsize];
+	extern vector<vector<int>> arr;
+	extern vector<array<int, 3>> blocklist;
+	extern vector<array<float, 3>> entitylist;
+	extern vector<array<float, 3>> destlist;
+	extern bitset<100> selected; //TODO: change this after
 
 }

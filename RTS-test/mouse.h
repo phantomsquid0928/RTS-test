@@ -1,5 +1,5 @@
 #pragma once
-#include "../shader/shader.h"
+#include "shader/shader.h"
 
 class mouse : shader
 {

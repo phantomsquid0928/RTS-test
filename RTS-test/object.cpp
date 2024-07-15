@@ -1,14 +1,12 @@
 #include "object.h"
 
 object::object() {
-	this->posx = 0;
-	this->posy = 0;
+	this->position = vec2(0, 0);
 }
 object::object(int posx, int posy) {
-	this->posx = posx;
-	this->posy = posy;
+	this->position = vec2(posx, posy);
 }
-void object::changepos(int posx, int posy) {
-	this->posx = posx;
-	this->posy = posy;
+void object::changepos(vec2 newpos) { //?
+	this->position.x = newpos.x;
+	this->position.y = newpos.y;
 }

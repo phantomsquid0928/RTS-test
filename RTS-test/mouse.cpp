@@ -1,14 +1,16 @@
 #include "mouse.h"
 
 using namespace input;
+using namespace mapinfo;
+
 float vertice[12] = { 0.0f,  0.0f, 0.0f,  // Bottom left
 			 1.0f,  0.0f, 0.0f,  // Bottom right
 			 1.0f,  1.0f, 0.0f,  // Top right
 			 0.0f,  1.0f, 0.0f   // Top left
 };
 mouse::mouse() {
-	vcode = readFile("mouse_vertex.glsl"); //mod
-	fcode = readFile("mouse_fragment.glsl");
+	vcode = readFile("shader/mouse_vertex.glsl"); //mod
+	fcode = readFile("shader/mouse_fragment.glsl");
 	shaderProgram = createShaderProgram(vcode.c_str(), fcode.c_str());
 	cout << "mouse shader : " << shaderProgram << endl;
 }
@@ -21,8 +23,6 @@ void mouse::render() { //TODO: need to assume shaderProgram called.
 	   0, 1, 2,
 	   2, 3, 0
 	};
-
-	
 
 	glBindVertexArray(VAO);
 
@@ -74,5 +74,59 @@ void mouse::update() {
 
 		glBindVertexArray(0);
 		glUseProgram(0);
+	}
+	if (mouse_status[leftmouse] == PRESS) {
+		selected.reset();
+		for (auto &[x, y, num] : entitylist) {
+			if (x <= mousex && mousex <= x + 10 && y <= mousey && mousey <= y + 10) // TODO: 10 is size of entitylist's entity <- list of entitylist is needed or pointer needed on entitylist
+			{
+				selected.set(num);
+			}
+		}
+	}
+	if (mouse_status[leftmouse] == DRAGGING) {
+		selected.reset();
+		for (auto& [x, y, num] : entitylist) {
+			int smallx = glm::min(clickposx, mousex);
+			int smally = glm::min(clickposy, mousey);
+			int bigx = glm::max(clickposx, mousex);
+			int bigy = glm::max(clickposy, mousey);
+
+			if (smallx <= x  && x <= bigx && smally <= y  && y <= bigy) {
+				selected.set(num);
+			}
+		}
+	}
+	if ((mouse_status[leftmouse] == DRAGGING || mouse_status[leftmouse] == PRESS) && keys_status[LCTRL] == PRESS) { //erasing
+
+		cout << "changing map..., erasing..." << endl;
+		int bounding_size = 5;
+		int minx = glm::max(0, mousex - bounding_size);
+		int miny = glm::max(0, mousey - bounding_size);
+		int maxx = glm::min(sizex - 1, mousex + bounding_size);
+		int maxy = glm::min(sizey - 1, mousey + bounding_size);
+		for (int i = minx; i <= maxx; i++) {
+			for (int j = miny; j <= maxy; j++) {
+				arr[i][j] = 0;
+			}
+		}
+		
+	}
+
+	if ((mouse_status[leftmouse] == DRAGGING || mouse_status[leftmouse] == PRESS) && keys_status[LALT] == PRESS) {
+		cout << "changing map..., adding..." << endl;
+	
+		int bounding_size = 5;
+		int minx = glm::max(0, mousex - bounding_size);
+		int miny = glm::max(0, mousey - bounding_size);
+		int maxx = glm::min(sizex - 1, mousex + bounding_size);
+		int maxy = glm::min(sizey - 1, mousey + bounding_size);
+
+		
+		for (int i = minx; i <= maxx; i++) {
+			for (int j = miny; j <= maxy; j++) {
+				arr[i][j] = 1;
+			}
+		}
 	}
 }
