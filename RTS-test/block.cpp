@@ -21,8 +21,8 @@ void block::render() { //render func for blocks (wall)
 	glUseProgram(shaderProgram);
 
 	glBindVertexArray(VAO);
-	glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-	//glDrawArrays(GL_LINE_LOOP, 0, 4);
+	//glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+	glDrawArrays(GL_LINE_LOOP, 0, 4);
 
 	glBindVertexArray(0);
 	glUseProgram(0);
@@ -103,5 +103,5 @@ void block::update() {
 
 }
 mat4 block::getaabb() {
-	return mat4(1.0f);
+	return mat4(1);
 }

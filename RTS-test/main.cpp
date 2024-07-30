@@ -8,6 +8,7 @@
 #include "path.h"
 #include "wall.h"
 #include "jpspath.h"
+#include "bbox.h"
 
 int loadMap();
 int saveMap();
@@ -33,6 +34,7 @@ namespace input {
 	int mousey;
 	int clickposx;
 	int clickposy;
+	bool togglebbox;
 	double timeold;
 	double timenow;
 	double recenttime;
@@ -41,10 +43,16 @@ namespace input {
 namespace mapinfo {
 	vector<vector<int>> arr(sizey / cellsize, vector<int> (sizex / cellsize, 0));
 	//int arr[sizey / cellsize][sizex / cellsize] = { 0 };
-	vector<array<int, 3>> blocklist;
+	//vector<array<int, 3>> blocklist;
 	vector<array<float, 3>> entitylist;
 	vector<array<float, 3>> destlist;
+	vector<point> walllist;
+	vector<vector<point>> conjugates;
+	vector<vector<point>> hulls;
+	vector<vector<point>> boxes;
 	bitset<100> selected; //TODO: change this after
+
+	int radius = 5;
 }
 
 pathfinders *pf;
@@ -53,6 +61,7 @@ jpspath* j;
 path* p;
 entity *entities;
 wall* walls;
+bbox* bboxes;
 
 //vector<entity> entitylist;
 
@@ -110,9 +119,86 @@ int main() {
 	mouse m = mouse();
 	m.render();
 
+	//sizex = 9;
+	//sizey = 5;
+	//
+	/*arr = {{0, 0, 1, 0, 0, 0, 1, 0, 0},
+			{0, 0, 0, 0, 0, 0, 1, 0, 0 },
+			{0, 1, 1, 0, 0, 0, 1, 1, 0 }, 
+			{0, 0, 1, 0, 0, 0, 0, 0, 0 }, 
+			{0, 0, 1, 0, 0, 0, 1, 0, 0 }, };
+	j->precalc(); //jps need precalc.
+	vector<vector<vector<int>>> t = j->gettable();
+	vector<vector<int>> jpm(3 * sizex, vector<int>(3 * sizey, 0));
 
+	for (int x = 0; x < sizex; x++) {
+		for (int y = 0; y < sizey; y++) {
+			jpm[0 + x * 3][0 + y * 3] = t[x][y][5];
+			jpm[0 + x * 3][1 + y * 3] = t[x][y][4];
+			jpm[0 + x * 3][2 + y * 3] = t[x][y][3];
+			jpm[1 + x * 3][0 + y * 3] = t[x][y][6];
+			jpm[1 + x * 3][1 + y * 3] = 0;//t[x][y][8];
+			jpm[1 + x * 3][2 + y * 3] = t[x][y][2];
+			jpm[2 + x * 3][0 + y * 3] = t[x][y][7];
+			jpm[2 + x * 3][1 + y * 3] = t[x][y][0];
+			jpm[2 + x * 3][2 + y * 3] = t[x][y][1];
+		}
+	}
+
+	int a = 0;
+	for (auto &i : jpm) {
+		int k = 0;
+		for (auto &j : i) {
+			if (k % 3 == 0) printf("|");
+			
+			printf("%3d", j);
+			k++;
+		}
+		a++;
+		if (a % 3 == 0) {
+			cout << endl;
+			for (int b = 0; b < 5 * sizey; b++)
+				printf("ㅡ");
+		}
+		cout << endl;
+	}*/
+
+
+
+
+	//sizex = 1024;
+	//sizey = 1024;
 	loadMap();
+	j->precalc(); //jps need precalc.
+	//j->boundingcalc();
+	auto res = j->getclusters();
+	
+	int num = 0;
+	for (auto &i : res) {
+		vector<point> box = j->getbbox(i);
+		
+		cout << "[";
+		for (auto &a : box) {
+			cout << "(" <<  a.x << ", " << a.y << "), ";
+		}
+		boxes.push_back(move(box));
+		cout << "]" << endl;
+		num++;
+	}
+	cout << "area num : " << num << endl;
+
+	//jump point 보는용
+	/*auto t = j->gettable();
+	for (int i = 0; i < sizex; i++) {
+		for (int j = 0; j < sizey; j++) {
+			if (t[i][j][8] != 0) {
+				boxes.push_back(vector<point>({ point(i, j) , point(i + 1, j), point(i + 1, j + 1), point(i, j + 1)}));
+			}
+		}
+	}*/
+	bboxes = new bbox(&boxes);
 	//loadEntities();
+	bboxes->create();
 
 	//makeBlocks();
 	makeEntities();
@@ -150,6 +236,9 @@ int main() {
 		walls->render();
 		walls->update();
 		m.update();
+		if (togglebbox)
+			bboxes->render();
+
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
@@ -205,7 +294,14 @@ int loadMap() {
 		int idx = 0;
 		for (auto i : input) {
 			if (isdigit(i)) {
-				arr[idy][idx] = i - '0';
+  				arr[idy][idx] = i - '0'; //wall = 1 now
+				if (arr[idy][idx] == 1) {
+					for (int k = std::max(0, idy - radius); k < std::min(sizey, idy + radius); k++) {
+						for (int t = std::max(0, idx - radius); t < std::min(sizex, idx + radius); t++) {
+							if (arr[k][t] != 1) arr[k][t] = 2;
+						}
+					}
+				}
 			}
 			else {
 				switch (i) {
@@ -235,7 +331,11 @@ int saveMap() {
 				ofs << "w";
 			}
 			else {
-				ofs << arr[i][j];
+				if (arr[i][j] == 2) {
+					ofs << 0;
+				}
+				else 
+					ofs << arr[i][j];
 			}
 		}
 		ofs << endl;
@@ -249,6 +349,7 @@ int saveMap() {
 void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 	if (key == GLFW_KEY_S && action == GLFW_PRESS) {
 		cout << "s pressed" << endl;
+		togglebbox ^= true;
 		keys_status[S] = PRESS;
 	}
 	if (key == GLFW_KEY_S && action == GLFW_RELEASE) {
@@ -259,9 +360,28 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 		cout << "lctrl pressed, erasing wall mode on" << endl;
 		keys_status[LCTRL] = PRESS;
 	}
-	if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_RELEASE) {
+	if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_RELEASE) { //need precalc on changed map
 		cout << "lctrl released" << endl;
 		keys_status[LCTRL] = RELEASE;
+		if (j) {
+			j->precalc();
+			/*j->boundingcalc();
+
+			auto res = j->getclusters();
+
+			boxes.clear();
+			for (auto& i : res) {
+				vector<point> box = j->getbbox(i);
+
+				cout << "[";
+				for (auto& a : box) {
+					cout << "(" << a.x << ", " << a.y << "), ";
+				}
+				boxes.push_back(move(box));
+				cout << "]" << endl;
+			}
+			bboxes->update();*/
+		}
 	}
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		cout << "ESC pressed, clear bits" << endl;
@@ -277,9 +397,28 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 		cout << "ALT pressed, adding wall mode on" << endl;
 		keys_status[LALT] = PRESS;
 	}
-	if (key == GLFW_KEY_LEFT_ALT && action == GLFW_RELEASE) {
+	if (key == GLFW_KEY_LEFT_ALT && action == GLFW_RELEASE) { //need precalc on changed map
 		cout << "ALT released" << endl;
 		keys_status[LALT] = RELEASE;
+		if (j) {
+			j->precalc();
+			/*j->boundingcalc();
+
+			auto res = j->getclusters();
+
+			boxes.clear();
+			for (auto& i : res) {
+				vector<point> box = j->getbbox(i);
+
+				cout << "[";
+				for (auto& a : box) {
+					cout << "(" << a.x << ", " << a.y << "), ";
+				}
+				boxes.push_back(move(box));
+				cout << "]" << endl;
+			}
+			bboxes->update();*/
+		}
 	}
 }
 void mousehandler(GLFWwindow* window, double xpos, double ypos) { //움직일때만 콜백이구만
@@ -313,58 +452,81 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 		cout << "rt click x : " << mousex << "y : " << mousey << endl;
 		mouse_status[rightmouse] = PRESS;
 
+		double astartotal = 0;
+		double jpstotal = 0;
+		double jpsgoal = 0;
 		for (auto& [x, y, num] : entitylist) {
 			if (selected[num]) {
 				//destlist[num] = {(float)clickposx, (float)clickposy, num};
 				printf("%d 's direction changed to %d %d", (int)num, clickposx, clickposy);
 				
+
+				//astar
 				pf->setfunc(a);
 				pf->setstart(vec2(x, y));
 				pf->setend(vec2(clickposx, clickposy));
 				pf->calculate();
-				a->postsmooth();
+				//a->postsmooth();
 
 				auto t = pf->getResult();
 				cout << t.size() << " !!!";
-				cout << "spent: " << pf->getusedtime() << endl;
-
-
-				// TODO: jps 최적화... 
-				/*pf->setfunc(j);
-				pf->setstart(vec2(x, y));
-				pf->setend(vec2(clickposx, clickposy));
-				pf->calculate();*/
-
-				/*auto jpsres = pf->getResult(); 
-				cout << jpsres.size() << " !!!";
-				cout << "spent: " << pf->getusedtime() << endl;*/
-
-				vector<vec2>* path = new vector<vec2>(t);
-				//vector<vec2>* path = new vector<vec2>(jpsres);
-				/*for (auto i : t) {
-					cout << i.x << ":" << i.y << endl;
-				}*/
-
+				cout << "astar spent: " << pf->getusedtime() << endl;
+				astartotal += pf->getusedtime();
+ 				/*vector<vec2>* path = new vector<vec2>(t);
 				if (t.size() == 0) {
 					entities->setpath((int)num, nullptr);
 				}
 				else {
 					entities->setpath((int)num, path);
-					
-				}
+				}*/
 
-				/*if (jpsres.size() == 0) {
+
+				cout << endl;
+				// TODO: jps 최적화... 
+				pf->setfunc(j);
+				pf->setstart(vec2(x, y));
+				pf->setend(vec2(clickposx, clickposy));
+				j->changemod(false);
+				pf->calculate();
+				//j->postsmooth();
+
+				auto jpsres = pf->getResult(); 
+				cout << jpsres.size() << " !!!";
+				cout << "jps+ origin spent: " << pf->getusedtime() << endl;
+				jpstotal += pf->getusedtime();
+				
+				vector<vec2>* path = new vector<vec2>(jpsres);
+
+				if (jpsres.size() == 0) {
 					entities->setpath((int)num, nullptr);
 				}
 				else {
 					entities->setpath((int)num, path);
 					destlist[num] = { path->at(0).x , path->at(0).y, num };
-				}*/
-				
-				cout << endl;
+				}
+
+				/*
+
+				pf->setfunc(j);
+				pf->setstart(vec2(x, y));
+				pf->setend(vec2(clickposx, clickposy));
+				j->changemod(true);
+				pf->calculate();
+			
+				//j->postsmooth();
+
+				auto jpsoriginres = pf->getResult();
+				cout << jpsoriginres.size() << " !!!";
+				cout << "jps+ goal spent: " << pf->getusedtime() << endl;
+				jpsgoal += pf->getusedtime();
+				*/
 			}
 
 		}
+
+		cout << "jps   : " << jpstotal << endl;
+		cout << "jps + goal : " << jpsgoal << endl;
+		cout << "astar : " << astartotal << endl;
 		for (auto &[x, y, num] : destlist) {
 			cout << x << " " <<  y << " " << num << endl;
 		}
@@ -376,16 +538,6 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 	if (button == GLFW_MOUSE_BUTTON_2 && action == GLFW_RELEASE) {
 		cout << "rt rel   x : " << mousex << "y : " << mousey << endl;
 		mouse_status[rightmouse] = RELEASE;
-	}
-}
-
-void makeBlocks() {
-	for (int i = 0; i < sizey; i++) {
-		for (int j = 0; j < sizex; j++) {
-			if (arr[i][j] != -1 && arr[i][j] != 0) {
-				blocklist.push_back({ i, j });
-			}
-		}
 	}
 }
 

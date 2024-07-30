@@ -156,9 +156,9 @@ void entity::update(float tick) { //will be called per tick?
 			for (int j = 1; j <= size; j++) {
 				vec2 radius = curpos + j * vec2(cos(6 * k), sin(6 * k));
 				if (radius.x < 0 || radius.x >= sizex || radius.y < 0 || radius.y >= sizey) continue;
-				if (arr[radius.x][radius.y] == 1) {
+				if (arr[radius.x][radius.y] == 1 || arr[radius.x][radius.y] == 2) {
 					vec2 vertical = vec2(cross(vec3(selected, 0), vec3(0, 0, 1)));
-					selected += 0.05 * size / j * -vec2(cos(k * 6), sin(k * 6));
+					selected += 0.01 * size / j * -vec2(cos(k * 6), sin(k * 6));
 				}
 			}
 		}
@@ -222,7 +222,7 @@ void entity::update(float tick) { //will be called per tick?
 				continue;
 			}
 
-			cout << i << " : "<< curidx << endl;
+			//cout << i << " : "<< curidx << endl;
 			destlist[i] = { paths[i]->at(curidx).x, paths[i]->at(curidx).y, (float)i };
 		}
 

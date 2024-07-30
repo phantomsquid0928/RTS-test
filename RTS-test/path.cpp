@@ -99,7 +99,7 @@ void path::render() { //TODO: need to assume shaderProgram called.
 				else {
 					glUniform4f(colorizer, 0.0f, 0.0f, 1.0f, 1.0f);
 				}*/
-				glUniform4f(colorizer, 0.0f, 1.0f, 0.0f, 1.0f);
+				glUniform4f(colorizer, 0.0f, 0.0f, 1.0f, 1.0f);
 
 				GLuint modelrotation = glGetUniformLocation(shaderProgram, "model");
 				GLuint projection = glGetUniformLocation(shaderProgram, "projection");

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "headers.hpp"
-#include "shader/shader.h"
+#include "../shader/shader.h"
 
 class wall : public shader
 {

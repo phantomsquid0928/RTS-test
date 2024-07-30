@@ -16,13 +16,15 @@
 #include <bitset>
 #include <queue>
 #include <functional>
+#include <chrono>
+#include <filesystem>
 
 using namespace std;
-using namespace glm;
+using namespace glm; 
 
 
-static const int sizex = 1024;
-static const int sizey = 1024;
+static const int sizex = 1024;// 9; //const
+static const int sizey = 1024 ;// 5;
 static const int cellsize = 1;
 static const string mapfile = "map.txt";
 
@@ -46,6 +48,7 @@ namespace input {
 	extern int mousey;
 	extern int clickposx;
 	extern int clickposy;
+	extern bool togglebbox;
 	extern double timeold;
 	extern double timenow;
 	extern status mouse_status[sizeof(mousemotion)];
@@ -53,9 +56,8 @@ namespace input {
 namespace mapinfo {
 	//extern int arr[sizey / cellsize][sizex / cellsize];
 	extern vector<vector<int>> arr;
-	extern vector<array<int, 3>> blocklist;
 	extern vector<array<float, 3>> entitylist;
 	extern vector<array<float, 3>> destlist;
 	extern bitset<100> selected; //TODO: change this after
-
+	extern int radius;
 }

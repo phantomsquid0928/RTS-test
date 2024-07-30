@@ -5,6 +5,7 @@ using namespace mapinfo;
 astarpath::astarpath() {
 	map = &arr;
 	found = false;
+	nodes.reserve(1000000);
 }
 astarpath::astarpath(vec2 start, vec2 end) {
 	this->start.x = (int)start.x;
@@ -14,20 +15,32 @@ astarpath::astarpath(vec2 start, vec2 end) {
 	map = &arr;
 	found = false;
 }
+
+inline bool astarpath::iswall(int x, int y, const vector<vector<int>>* map) {
+	return !isvalid(x, y, map) || ((*map)[x][y] == 1 || (*map)[x][y] == 2);
+}
+inline bool astarpath::ispassible(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
+	return isvalid(x, y, map) && ((*map)[x][y] != 1 && (*map)[x][y] != 2);
+}
+inline bool astarpath::isvalid(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
+	return x >= 0 && y >= 0 && x < sizex&& y < sizey;
+}
+
+
 double astarpath::heuristic(int x1, int y1, int x2, int y2) {
-	//return pow(x1 - x2, 2) + pow(y1 - y2, 2); //L2
-	// return hypot(a.x - b.x, a.y - b.y); //L2
-	return abs(x1 - x2) + abs(y1 - y2); //L1 norm
+	return hypot(x1 - x2, y1 - y2);// pow(x1 - x2, 2) + pow(y1 - y2, 2); //L2
+	//return abs(x1 - x2) + abs(y1 - y2); //L1 norm
+	//return std::max(abs(x1 - x2), abs(y1 - y2)) + 1.41 * std::min(abs(x1 - x2), abs(y1 - y2)); //octile
 }
 void astarpath::calculate() {
 	cout << "called" << endl;
-	unordered_map<int, Node> nodes;
-	priority_queue<Node, vector<Node>, greater<Node>> pq; //openlist
+	nodes.clear();
+	pq = priority_queue<Node, vector<Node>, greater<Node>>();
 
-	vector <point> directions{ {1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1} };
+	//vector <point> directions{ {1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1} };
 
-	nodes[start.x * map[0].size() + start.y] = Node(start, 0, heuristic(start.x, start.y, end.x, end.y)); //closed list
-	pq.push(nodes[start.x * map[0].size() + start.y]);
+	nodes[start.x * sizey + start.y] = Node(start, 0, heuristic(start.x, start.y, end.x, end.y)); //closed list
+	pq.push(nodes[start.x * sizey + start.y]);
 	found = false;
 
 	while (!pq.empty()) {
@@ -45,13 +58,14 @@ void astarpath::calculate() {
 
 		for (auto& dir : directions) {
 			int nx = cur.p.x + dir.x, ny = cur.p.y + dir.y;
-			if (!isvalid(nx, ny, map)) continue;
+			if (!ispassible(nx, ny, map)) continue;
 			double new_g = cur.g + 1;
-			int key = nx * map[0].size() + ny;
+			int key = nx * sizey + ny;
 
-			if (!nodes.count(key) || new_g < nodes[key].g) {
-				nodes[key] = Node(point(nx, ny), new_g, heuristic(nx, ny, end.x, end.y), &nodes[cur.p.x * map[0].size() + cur.p.y]);
-				pq.push(nodes[key]);
+			if (!nodes.count(key) || new_g < nodes[key].g) { //Node Á¤ÀÇ ¼öÁ¤µÊ
+				Node node = Node(point(nx, ny),0, new_g, heuristic(nx, ny, end.x, end.y), &nodes[cur.p.x * sizey + cur.p.y]);
+				nodes[key] = node;
+				pq.push(node);
 			}
  		}
 	}
@@ -66,7 +80,7 @@ bool astarpath::lineofsight(vec2 posa, vec2 posb) { //true º¸ÀÓ false º®ÀÌ¶û Ãæµ
 	int e2;
 	int x = x0, y = y0;
 	while (true) {
-		if (!isvalid(x, y, map)) return false;
+		if (!ispassible(x, y, map)) return false;
 		if (x == x1 && y == y1) break;
 		e2 = err << 1;
 		if (e2 > -dy) { err -= dy; x += sx; }
