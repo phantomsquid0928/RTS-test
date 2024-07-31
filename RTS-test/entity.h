@@ -29,6 +29,7 @@ private:
 	const vector <array<float, 3>>* dest;
 	vector<float> rotations;
 	vector<vec2> velocity;
+	vector<vec2> accel;
 
 	//vector<vec2> location; entitylist can do same feature.
 

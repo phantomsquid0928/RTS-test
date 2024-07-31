@@ -39,6 +39,15 @@ struct Node {
 		return f() > other.f();
 	}
 };
+struct flownode {
+	int x, y;
+	point bestdir;
+	int cost;
+	int bestcost;
+	flownode(int x, int y, point bestdir = point(0, 0), int cost = 1, int bestcost = INT_MAX) : x(x), y(y), bestdir(bestdir), cost(cost), bestcost(bestcost)
+	{};
+	flownode() : x(0), y(0), bestdir(point(0, 0)), cost(1), bestcost(INT_MAX) {};
+};
 class pathfinders
 {
 public:

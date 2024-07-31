@@ -12,21 +12,24 @@ jpspath::jpspath() {
 	if (filesystem::exists(filePath))
 		loadTable();
 	//TODO: need precompute, and change to other jps that faster than astar
-	pqreserve.reserve(100000);
+	pqreserve.reserve(1000000);
 	nodes.reserve(10000000);
 	nexts.reserve(100);
-	table.reserve(10000000);
+	table.reserve(1000000);
 	clusters.reserve(100000);
 	convexhulls.reserve(100000);
+	
+	cboundtable.reserve(100000);
 	//memset(table, 0, sizeof(table));
 	//table.resize(sizey, vector<vector<int>>(sizex, vector<int>(9, 0)));
 
 	//table = vector<vector<vector<int>>>(sizex, vector<vector<int>>(sizey, vector<int>(9, 0)));
 	usingbounding = true;
-	//openlist = vector<vector<Node>>(sizey, vector<Node>(sizex, Node()));
+	//openlist = vector<vector<Node>>(sizex, vector<Node>(sizey, Node()));
 }
 
 void jpspath::changemod(bool usingbounding) {
+	if (this->usingbounding == usingbounding) return;
 	this->usingbounding = usingbounding;
 }
 void jpspath::loadTable() {
@@ -67,7 +70,7 @@ void jpspath::saveTable() {
 
 	for (int i = 0; i < sizex; i++) {
 		for (int j = 0; j < sizey; j++) {
-			for (int d = 0; d < directions.size(); d++) {
+			for (int d = 0; d < 8; d++) {
 				ofs << table[i][j][d] << ",";
 			}
 			ofs << "|";
@@ -78,19 +81,16 @@ void jpspath::saveTable() {
 }
 
 inline bool jpspath::iswall(int x, int y, const vector<vector<int>>* map) {
-	return !isvalid(x, y, map) || ((*map)[x][y] == 1/* || (*map)[x][y] == 2*/);
+	return !isvalid(x, y, map) || ((*map)[x][y] == 1 || (*map)[x][y] == 2); //2 is for size padding
 }
 inline bool jpspath::ispassible(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
-	return isvalid(x, y, map) && ((*map)[x][y] != 1/* && (*map)[x][y] != 2*/);
+	return isvalid(x, y, map) && ((*map)[x][y] != 1 && (*map)[x][y] != 2);
 }
 inline bool jpspath::isvalid(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
-	return x >= 0 && y >= 0 && x < sizex&& y < sizey;
+	return x >= 0 && y >= 0 && x < sizex && y < sizey;
 }
 
-inline bool jpspath::isinbox(point target) {
-	if (!usingbounding) return true;
-	else return false;// mod here
-}
+
 
 bool jpspath::isjumppoint(int x, int y, int dirx, int diry) {
 	return ispassible(x - dirx, y - diry, map) &&
@@ -100,8 +100,10 @@ bool jpspath::isjumppoint(int x, int y, int dirx, int diry) {
 				iswall(x - dirx - diry, y - diry - dirx, map))));
 }
 void jpspath::precalc() {
-	table = vector<vector<vector<int>>>(sizex, vector<vector<int>>(sizey, vector<int>(17, 0)));
+	table = vector<vector<vector<int>>>(sizex, vector<vector<int>>(sizey, vector<int>(10, 0)));
 	cout << " here";
+	
+	jps.clear();
 
 	int num = 0;
 	/*for (int i = 0; i < sizex; i++) {
@@ -130,11 +132,11 @@ void jpspath::precalc() {
 
 			}
 		}
-	}*/
+	}*
 	/*
 	for (int i = 0; i < sizex; i++) {
 		for (int j = 0; j < sizey; j++) {
-			if (arr[i][j] == 0) {
+			if (ispassible(i, j, map)) {
 				for (int d = 1; d < 8; d += 2) {
 					int r = i + directions[d].x;
 					int c = j + directions[d].y;
@@ -142,9 +144,10 @@ void jpspath::precalc() {
 					if (0 > r || r >= sizex) continue;
 					if (0 > c || c >= sizey) continue;
 
-					if (arr[r][c] == 1) {
-						if (arr[r][j] == 0 && arr[i][c] == 0) {
+					if (iswall(r,c , map)) {
+						if (arr[r][j] != 1 && arr[i][c] != 1) {
 							table[i][j][8] = 1;
+							convexhulls.push_back(vector<point>({point(i, j), point(i + 1, j), point(i + 1, j + 1), point(i, j + 1)}));
 							num++;
 						}
 					}
@@ -158,7 +161,7 @@ void jpspath::precalc() {
 	for (int i = 0; i < sizex; i++) {
 		for (int j = 0; j < sizey; j++) {
 			if (arr[i][j] != 1) {
-				for (int d = 0; d < directions.size(); d++) {
+				for (int d = 0; d < 8; d++) {
 					int dist = 0;
 					point dir = directions[d];
 					point opdir1 = directions[(d + 3) % 8];
@@ -167,7 +170,7 @@ void jpspath::precalc() {
 					for (int r = i + dir.x, c = j + dir.y; (0 <= r && r < sizex) && (0 <= c && c < sizey); r += dir.x, c += dir.y) {
 						dist++;
 
-						if (arr[r][c] == 1) {
+						if (iswall(r, c, map)) {
 							table[i][j][d] = (dist - 1) * -1;
 							break;
 						}
@@ -181,7 +184,7 @@ void jpspath::precalc() {
 									table[i][j][d] = dist;
 									break;
 								}
-								if (arr[r + opdir1.x][c + opdir1.y] == 1 || arr[r + opdir2.x][c + opdir2.y] == 1) {
+								if (iswall(r + opdir1.x, c + opdir1.y, map) || iswall(r + opdir2.x, c + opdir2.y, map)) {
 									table[i][j][d] = dist;
 									break;
 								}
@@ -245,9 +248,7 @@ void jpspath::precalc() {
 	
 	vector<point> directions = { {1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, 1}, {-1, -1}, {1, -1} };
 
-	vector<point> jps;
-
-	for (int d = 0; d < directions.size(); d++) {
+	for (int d = 0; d < 8; d++) {
 		cout << "{" << d << endl;
 		for (int i = 0; i < sizex; i++) {
 			for (int j = 0; j < sizey; j++) {
@@ -267,62 +268,69 @@ void jpspath::precalc() {
 					dist++;
 					
 					if ((dirx != 0 && diry != 0)) { //not perfect but will not cause err
-						if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
-							table[i][j][2 * (d - 4) + 1] = -(dist - 1);
-							break;
-						}
+						
 						if (dirx == 1 && diry == 1 && ispassible(r, c, map)) {//down right
-							if ((table[r][c][0] > 0 || table[r][c][2] > 0)) {
+							if ((table[r][c][0] > 0 || table[r][c][2] > 0) || table[r][c][8] != 0) {
 								table[i][j][1] = dist;
 								break;
 							}
 						}
 						if (dirx == -1 && diry == 1 && ispassible(r, c, map)) {//up right
-							if ((table[r][c][2] > 0 || table[r][c][4] > 0)) {
+							if ((table[r][c][2] > 0 || table[r][c][4] > 0) || table[r][c][8] != 0) {
 								table[i][j][3] = dist;
 								break;
 							}
 						}
 						if (dirx == -1 && diry == -1 && ispassible(r, c, map)) {//up left
-							if ((table[r][c][4] > 0 || table[r][c][6] > 0)) {
+							if ((table[r][c][4] > 0 || table[r][c][6] > 0) || table[r][c][8] != 0) {
 								table[i][j][5] = dist;
 								break;
 							}
 						}
 						if (dirx == 1 && diry == -1 && ispassible(r, c, map)) {//downleft
-							if ((table[r][c][0] > 0 || table[r][c][6] > 0)) {
+							if ((table[r][c][0] > 0 || table[r][c][6] > 0) || table[r][c][8] != 0) {
 								table[i][j][7] = dist;
 								break;
 							}
+						}if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
+							table[i][j][2 * (d - 4) + 1] = -(dist - 1);
+							break;
 						}
+						
 					}
+					if (d < 4) {
+						
 
-					else if (dirx != 0 &&
-						((ispassible(r, c + 1, map) && !ispassible(r - dirx, c + 1, map)) ||
-							(ispassible(r, c - 1, map) && !ispassible(r - dirx, c - 1, map)))) {
-						table[i][j][2 * d] = dist;
-						if (table[r][c][8] == 0) {
-							table[r][c][8] |= dirright;
-							num++;
-							jps.push_back(point(r, c));
+						if (dirx != 0 &&
+							((ispassible(r, c + 1, map) && !ispassible(r - dirx, c + 1, map)) ||
+								(ispassible(r, c - 1, map) && !ispassible(r - dirx, c - 1, map)))) {
+							table[i][j][2 * d] = dist;
+							if (table[r][c][8] == 0) {
+								table[r][c][8] |= -1;
+								num++;
+								//convexhulls.push_back(vector<point>({ point(i, j), point(i + 1, j), point(i + 1, j + 1), point(i, j + 1) }));
+								jps.push_back(point(r, c));
+							}
+							break;
 						}
-						break;
-					}
-					else if (diry != 0 &&
-						((ispassible(r + 1, c, map) && !ispassible(r + 1, c - diry, map)) ||
-							(ispassible(r - 1, c, map) && !ispassible(r - 1, c - diry, map)))) {
-						table[i][j][2 * d] = dist;
-						if (table[r][c][8] == 0) {
-							table[r][c][8] |= dirright;
-							num++;
-							jps.push_back(point(r, c));
+						if (diry != 0 &&
+							((ispassible(r + 1, c, map) && !ispassible(r + 1, c - diry, map)) ||
+								(ispassible(r - 1, c, map) && !ispassible(r - 1, c - diry, map)))) {
+							table[i][j][2 * d] = dist;
+							if (table[r][c][8] == 0) {
+								table[r][c][8] |= -1;
+								num++;
+								//convexhulls.push_back(vector<point>({ point(i, j), point(i + 1, j), point(i + 1, j + 1), point(i, j + 1) }));
+								jps.push_back(point(r, c));
+							}
+							break;
+						}if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
+							table[i][j][2 * d] = -(dist - 1);
+							break;
 						}
-						break;
 					}
-					if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
-						table[i][j][2 * d] = -(dist - 1);
-						break;
-					}
+					
+					
 					/*cout << "awkward" << endl;
 					cout << i << ":" << j << ":" << r << ":" << c << endl;*/
 				}
@@ -335,43 +343,6 @@ void jpspath::precalc() {
 	if (usingbounding) {
 		boundingcalc();
 	}
-	bool hist = usingbounding;
-	usingbounding = false;
-	int i = 0;
-	int j = 0;
-	int t = 0;
-	for (auto &p : jps) {
-		for (auto &op : jps) {
-			if (j <= i) {
-				j++;
-				continue;
-			}
-			if (table[p.x][p.y][8] != 0 && check(table[p.x][p.y][8], table[op.x][op.y][8])) {
-				j++;
-				continue;
-			}
-			cout << ++t << endl;
-			this->setstart(vec2(p.x, p.y));
-			this->setend(vec2(op.x, op.y));
-			this->calculate();
-			vector<vec2> path = this->getResult();
-			if (path.size() != 0) {
-				vec2 first = vec2(path[1].x - path[0].x, path[1].y - path[0].y);
-
-				vec2 normf = normalize(first);
-				for (int d = 0; d < directions.size(); d++) {
-					point dir = directions[d];
-					vec2 dirv = vec2(dir.x, dir.y);
-					if (dot(dirv, normf) >= 0) {
-						table[p.x][p.y][9 + d] = table[op.x][op.y][8]; //TODO: table with bitset needed?
-					}
-				}
-			}
-			j++;
-		}
-		i++;
-	}
-	usingbounding = hist;
 }
 
 inline bool isbounding(point a) { // check if bounding to end
@@ -387,10 +358,14 @@ int ccw(point& a, point& b, point& c) {
 //vector<int> clusters;
 //vector<vector<point>> convexhulls; needed
 void jpspath::boundingcalc() { 
-	convexhulls.clear();
 	clusternumbers.clear();
 	clusters.clear();
+	convexhulls.clear();
+	cboundtable.clear();
+		
 
+
+	//////////// useless stub
 	/*vector<point> points;
 	//dbscan
 	for (int i = 0; i < sizex; i++) {
@@ -420,26 +395,28 @@ void jpspath::boundingcalc() {
 
 	for (int i = 0; i < sizex; i++) {
 		for (int j = 0; j < sizey; j++) {
-			if ((*map)[i][j] == 1 && !visited[i][j]) {
+			if (iswall(i, j, map) && !visited[i][j]) {
 				clusternum++;
-				unionfind[clusternum] = clusternum;
+				//unionfind[clusternum] = clusternum;
 
-				clusters[clusternum].push_back(point(i, j));
+				clusters[clusternum].emplace_back(point(i, j));
+				table[i][j][9] = clusternum;
 				visited[i][j] = true;
-				q.push(point(i, j));
+				q.emplace(point(i, j));
 				while (!q.empty()) {
 					point& cur = q.front();
 					q.pop();
 					
-					for (int d = 0; d < directions.size(); d++) {
+					for (int d = 0; d < 8; d++) {
 						int nx = cur.x + directions[d].x;
 						int ny = cur.y + directions[d].y;
 						if (!isvalid(nx, ny, map)) continue;
-						if ((*map)[nx][ny] != 1 || visited[nx][ny]) continue;
+						if (ispassible(nx, ny, map) || visited[nx][ny]) continue;
 						point np = point(nx, ny);
 						visited[nx][ny] = true;
 						clusters[clusternum].push_back(np);
-						q.push(np);
+						table[nx][ny][9] = clusternum;
+						q.emplace(np);
 					}
 				}
 			}
@@ -451,18 +428,37 @@ void jpspath::boundingcalc() {
 	}*/
 	for (auto& c : clusters) {
 		convexhulls.push_back(c.second);
-		auto box = getbbox(c.second);
-		for (int i = box[0].x; i <= box[2].x; i++) {
+		//auto box = getbbox(c.second, 5);
+		/*for (int i = box[0].x; i <= box[2].x; i++) {
 			for (int j = box[0].y; j <= box[2].y; j++) {
-				if (table[i][j][8] != 0) {//todo unionfind
-					if (check(c.first, table[i][j][8])) continue;
-					else union_pair(c.first, table[i][j][8]);
-					table[i][j][8] = c.first;
+				if (table[i][j][9] != 0) {//9 is only for clusternum
+					if (check(c.first, table[i][j][9])) continue;
+					else union_pair(c.first, table[i][j][9]);
+					table[i][j][9] = c.first;
 				}
 				
-				table[i][j][8] = c.first;
+				table[i][j][9] = c.first;//?
 			}
 
+		}*/
+		for (auto& p : c.second) {
+
+			int boundingsize = 15;
+			int minx = std::max(0, p.x - boundingsize);
+			int miny = std::max(0, p.y - boundingsize);
+			int maxx = std::min(sizex - 1, p.x + boundingsize);
+			int maxy = std::min(sizey - 1, p.y + boundingsize);
+			for (int i = minx; i <= maxx; i++) {
+				for (int j = miny; j <= maxy; j++) {
+					if (table[i][j][9] != 0) {//9 is only for clusternum
+						//if (check(c.first, table[i][j][9])) continue;
+						//else union_pair(c.first, table[i][j][9]);
+						table[i][j][9] = c.first;
+					}
+				
+					table[i][j][9] = c.first;//?
+				}
+			}
 		}
 
 		//convex hull
@@ -470,13 +466,90 @@ void jpspath::boundingcalc() {
 
 	cout << "adjacent cluster : " << endl;
 	for (int i = 1; i <= clusternum; i++) {
-		cout << unionfind[i] << " ";
+		//cout << unionfind[i] << " ";
 	}
 	cout << endl;
 
 	cout << "number of cluster : " << clusters.size() << endl;
 	//convex hull
 
+
+
+	bool hist = usingbounding;
+	usingbounding = false;
+	int i = 0;
+	int j = 0;
+	int t = 0;
+
+	unordered_map<int, vector<point>> jumpcluster;
+	for (auto& p : jps) {
+		//if getbbox() was 0 size
+		/*for (auto& d : directions) {
+			if (!isvalid(p.x + d.x, p.y + d.y, map)) continue;
+			if (table[p.x + d.x][p.y + d.y][9] != 0) {
+				int cnum = table[p.x + d.x][p.y + d.y][9];
+				jumpcluster[cnum].emplace_back(p);
+				table[p.x][p.y][9] = cnum;
+			}
+		}*/
+
+		convexhulls.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
+		if (table[p.x][p.y][9] != 0) {
+			int cnum = table[p.x][p.y][9];
+			jumpcluster[cnum].emplace_back(p);
+			table[p.x][p.y][9] = cnum;
+		}
+	}
+
+	for (auto& jc : jumpcluster) {
+		for (auto& oc : jumpcluster) {
+			if (jc.first >= oc.first) continue;
+			vector<vec2> path;
+			bool found = false;
+			for (auto& p : jc.second) {
+				if (found) break;
+				for (auto& op : oc.second) {
+					if (p == op) continue;
+					//cout << "calcing: " << p.x << p.y << " ~ " << op.x << op.y << endl;
+
+					this->setstart(vec2(p.x, p.y));
+					this->setend(vec2(op.x, op.y));
+					this->calculate();
+
+					path = this->getResult();
+					if (path.size() != 0) {
+
+						found = true;
+						break;
+					}
+				}
+			}
+			///calcs...
+			if (!found) {
+
+				//add that there is no path between them or not add?
+				continue;
+			}
+
+			vector <point> chunk;
+			chunk.insert(chunk.end(), jc.second.begin(), jc.second.end());
+			chunk.insert(chunk.end(), oc.second.begin(), oc.second.end());
+			for (auto i : path) {
+				chunk.emplace_back(point(i.x, i.y));
+			}
+
+			auto bbox = getbbox(chunk, 1);
+			cboundtable[jc.first * jumpcluster.size() + oc.first] = bbox/*bbox of 1 point of jc ~ 1point of oc path + jc + oc */;
+			cboundtable[oc.first * jumpcluster.size() + jc.first] = bbox/*same as above*/;
+			//if next point bounds in area bbox from     <-  cboundtable[table[c][c][9] * size + table[end][end][9]] then push or continue;
+
+		}
+	}
+
+//	cout << "finished"
+
+
+	usingbounding = hist;
 	
 }
 
@@ -566,7 +639,7 @@ vector<point> jpspath::getconvex(vector<point>& input) {
 	hull.resize(k - 1);
 	return hull;
 }
-vector<point> jpspath::getbbox(vector<point>& input) {// simpler , get little bigger bbox of cluster
+vector<point> jpspath::getbbox(vector<point>& input, int size) {// simpler , get little bigger bbox of cluster
 	
 	int minx = 10000000, miny = 100000000;
 	int maxx = -1, maxy = -1;
@@ -578,10 +651,10 @@ vector<point> jpspath::getbbox(vector<point>& input) {// simpler , get little bi
 	}
 
 	vector<point> res;
-	res.push_back(point(std::max(minx - 10, 0), std::max(miny - 10, 0)));
-	res.push_back(point(std::min(maxx + 10, sizex - 1), std::max(miny - 10, 0)));
-	res.push_back(point(std::min(maxx + 10, sizex - 1), std::min(maxy + 10, sizey - 1)));
-	res.push_back(point(std::max(minx - 10, 0), std::min(maxy + 10, sizey - 1)));
+	res.push_back(point(std::max(minx - size, 0), std::max(miny - size, 0)));
+	res.push_back(point(std::min(maxx + size, sizex - 1), std::max(miny - size, 0)));
+	res.push_back(point(std::min(maxx + size, sizex - 1), std::min(maxy + size, sizey - 1)));
+	res.push_back(point(std::max(minx - size, 0), std::min(maxy + size, sizey - 1)));
 	/*res.push_back(point(minx, miny));
 	res.push_back(point(maxx, miny));
 	res.push_back(point(maxx, maxy));
@@ -590,12 +663,21 @@ vector<point> jpspath::getbbox(vector<point>& input) {// simpler , get little bi
 }
 
 bool jpspath::isinbbox(vector<point> box, point& pt) {
-	return box[0].x <= pt.x && box[1].x >= pt.x && box[0].y <= pt.y && box[1].y >= pt.y;
+	return box[0].x <= pt.x && box[2].x >= pt.x && box[0].y <= pt.y && box[2].y >= pt.y;
 }
 
 vector<vector<vector<int>>> jpspath::gettable() {
 	return table;
 }
+
+unordered_map<int, vector<point>> jpspath::getctable() {
+	return cboundtable;
+}
+vector<point> jpspath::getjp() {
+	return jps;
+}
+
+
 inline double jpspath::heuristic(point& a, point& b) {
 	//return abs(a.x - b.x) + abs(a.y - b.y);
 	return hypot(a.x - b.x, a.y - b.y);
@@ -696,8 +778,8 @@ inline point jpspath::jump(point cur, int idx) {
 	}
 	return point{ -1, -1 };
 	
-	
-	/*if (end.x != cur.x) { // need fix
+	/*
+	if (end.x != cur.x) { // need fix
 		if (diffrow >= diffcol)
 			toward_end_dir.x = end.x - cur.x > 0 ? 1 : -1;
 	}
@@ -744,14 +826,14 @@ inline vector<point> jpspath::identify_nextpoints(Node* node) {
 		mindir = 0;
 		maxdir = 7;
 	}
-	/*else {
+	else {
 		point parent = node->parent->p;
 
 		point searchdir = point(0, 0);
 		if (parent.x < node->p.x) searchdir.x = 1;
 		else if (parent.x == node->p.x) searchdir.x = 0;
 		else searchdir.x = -1;
-		
+
 		if (parent.y < node->p.y) searchdir.y = 1;
 		else if (parent.y == node->p.y) searchdir.y = 0;
 		else searchdir.y = -1;
@@ -759,18 +841,18 @@ inline vector<point> jpspath::identify_nextpoints(Node* node) {
 		int lastdir = 0;
 		if (node->p.x == parent.x) {
 			if (node->p.y > parent.y) {
-				lastdir = 0;
-			}
-			else {
-				lastdir = 4;
-			}
-		}
-		else if (node->p.y == parent.y) {
-			if (node->p.x > parent.x) {
 				lastdir = 2;
 			}
 			else {
 				lastdir = 6;
+			}
+		}
+		else if (node->p.y == parent.y) {
+			if (node->p.x > parent.x) {
+				lastdir = 0;
+			}
+			else {
+				lastdir = 4;
 			}
 		}
 		else {
@@ -781,7 +863,7 @@ inline vector<point> jpspath::identify_nextpoints(Node* node) {
 				else {
 					lastdir = 3;
 				}
-			}
+			} 
 			else {
 				if (node->p.x > parent.x) {
 					lastdir = 7;
@@ -809,18 +891,49 @@ inline vector<point> jpspath::identify_nextpoints(Node* node) {
 			mindir--;
 			maxdir--;
 		}
-		
-	}*/
+
+	}
 	//cout << "dirs : "<<mindir << maxdir << endl;
+	/*if (usingbounding)
+		cout << "cur is : " << node->p.x << "," << node->p.y << endl;*/
 	for (int i = mindir; i <= maxdir; i++) {
 		int d = i % 8;
 		//cout << d << "has jump dist" << table[node->p.x][node->p.y][d] << endl;
 		point jumppoint = jump(node->p, d);
 		//cout << jumppoint.x << " " << jumppoint.y << endl;
-		if (!usingbounding && jumppoint.x != -1) {
-			//cout << mindir << ":" << maxdir << endl;
-			//cout << jumppoint.x << " " << jumppoint.y << endl;
+		
+		if (usingbounding) { //if next is jp, if next bounds in     cur : end path cluster bbox then return or continue.
+			if (jumppoint.x == -1) continue;
+			//cout << "promising" << jumppoint.x << jumppoint.y << endl;
+			//if ()
+
+			//if next point bounds in area bbox from     <-  cboundtable[table[c][c][9] * size + table[end][end][9]] then push or continue;
+			//fi (isinbbox())
+			int var1 = table[node->p.x][node->p.y][9];
+			int var2 = table[end.x][end.y][9];
+			int isjp = table[node->p.x][node->p.y][8];
+			//cout << "cur values : " << var1 <<" : " << var2 << " : " << isjp << endl;
+			if (var1 == var2 || var1 == 0 || var2 == 0 || isjp == 0) {
+				//cout << "selected" << jumppoint.x << ":" << jumppoint.y << endl;
+				nexts.emplace_back(jumppoint);
+				continue;
+			}
+
+			int hash = var1 * clusters.size() + var2; //modify 68
+			if (!cboundtable.count(hash)) continue;
+			vector<point> &box = cboundtable[hash];
+			if (!isinbbox(box, end)) continue;
+
+			/*cout << "hash was" << hash / clusters.size() << ": " << hash % clusters.size() << endl;
+			cout << jumppoint.x << " : " << jumppoint.y << endl;*/
 			nexts.emplace_back(jumppoint);
+		}
+		if (!usingbounding) {
+			if (jumppoint.x != -1) {
+				//cout << mindir << ":" << maxdir << endl;
+				//cout << jumppoint.x << " " << jumppoint.y << endl;
+				nexts.emplace_back(jumppoint);
+			}
 		}
 
 	}
@@ -828,12 +941,14 @@ inline vector<point> jpspath::identify_nextpoints(Node* node) {
 	return nexts;
 }
 
-void jpspath::calculate() {
+/*void jpspath::calculate() { //slow, perfect
 	//memset(openlist, 0, sizeof(openlist));
-	pq = priority_queue <Node, vector<Node>, less<Node>>(less<Node>(), move(pqreserve));
+	//pq = priority_queue <Node, vector<Node>, less<Node>>(less<Node>(), move(pqreserve));
+	closelist.clear();
 
+	priority_queue < Node*, vector<Node*>, function<bool(Node*, Node*)>> pq([](Node* a, Node* b) ->bool {return *a > *b;});
+	//cout << "end is in" << table[end.x][end.y][9] << endl;
 	Node& nodestart = openlist[start.x][start.y];
-	vector<Node> closelist = {};
 
 	nodestart.p = start;
 	nodestart.g = 0;
@@ -841,49 +956,50 @@ void jpspath::calculate() {
 	nodestart.status = 1;
 	nodestart.parent = nullptr;
 
-	pq.emplace(nodestart);
+	pq.emplace(&nodestart);
 
 	found = false;
 	Node* last = nullptr;
 	while (!pq.empty()) {
-		closelist.emplace_back(openlist[pq.top().p.x][pq.top().p.y]);
-		Node& cur = closelist.back();
+		closelist.emplace_back(pq.top());
+		Node* cur = pq.top();
 		pq.pop();
-		if (cur.status == 2) continue;
-		cur.status = 2;
+		if (cur->status == 2) continue;
+		cur->status = 2;
 
-		if (cur.p == end) {
-			last = &cur;
+		if (cur->p == end) {
+			last = cur;
 			found = true;
 			break;
 		}
 
-		identify_nextpoints(&cur);
+		identify_nextpoints(cur);
 
 		while (!nexts.empty()) {
 			point& next = *(nexts.end() - 1);
 			nexts.pop_back();
-			//if (openlist[next.x][next.y].status == 2) continue;
-
-			double newg = cur.g + heuristic(cur.p, next);
-
 			Node& nextnode = openlist[next.x][next.y];
+			if (nextnode.status == 2) continue;
+
+			double newg = cur->g + heuristic(cur->p, next);
+
+			
 			if (nextnode.status == 0) {
 				nextnode.p = next;
 				nextnode.g = newg;
 				nextnode.h = heuristic(next, end);
-				nextnode.parent = &openlist[cur.p.x][cur.p.y];
+				nextnode.parent = cur;
 				nextnode.status = 1;
-				pq.emplace(nextnode);
+				pq.emplace(&nextnode);
 			}
 			else if (newg < nextnode.g) {
 				nextnode.p = next;
 				nextnode.g = newg;
 				nextnode.h = heuristic(next, end);
-				nextnode.parent = &openlist[cur.p.x][cur.p.y];
+				nextnode.parent = cur;
 				nextnode.status = 1;
 				//closelist.emplace_back(&openlist[next.x][next.y]);
-				pq.emplace(nextnode);
+				pq.emplace(&nextnode);
 			}
 		}
 	}
@@ -891,11 +1007,11 @@ void jpspath::calculate() {
 		vector<vec2> path;
 		Node* c, *p;
 		int cidx = closelist.size() - 1;
-		c = &closelist.back();
-		p = closelist.back().parent;
+		c = closelist.back();
+		p = closelist.back()->parent;
 		path.emplace_back(vec2(c->p.x, c->p.y));
 		while (cidx >= 0) {
-			c = &openlist[closelist[cidx].p.x][closelist[cidx].p.y];
+			c = &openlist[closelist[cidx]->p.x][closelist[cidx]->p.y];
 			c->g = 0;
 			c->h = 0;
 			c->status = 0;
@@ -903,51 +1019,63 @@ void jpspath::calculate() {
 				path.emplace_back(vec2(c->p.x, c->p.y));
 				p = c->parent;
 			}
-			c->parent = nullptr;
+			//c->parent = nullptr;
 			cidx--;
 		}
 		path.emplace_back(vec2(c->p.x, c->p.y));
 		
-		/*for (Node* node = last; node; node = node->parent)
-			path.emplace_back(vec2(node->p.x, node->p.y));
-			*/
+		for (Node* node = last; node; node = node->parent)
+			path.emplace_back(vec2(node->p.x, node->p.y
+			
 		reverse(path.begin(), path.end());
 		results = path;
+		//openlist = vector<vector<Node>>(sizex, vector<Node>(sizey, Node()));
 	}
 	else {
-		memset(openlist, 0, sizeof(openlist));
+		openlist = vector<vector<Node>>(sizex, vector<Node>(sizey, Node()));
 	}
-}
-	
-
-/*void jpspath::calculate() {
+}*/
+/// <summary>
+/// O cast : 20ms for non exist path 4ms for exist slowest for 20 entities    fastest : 0.5ms <- 20entities
+/// </summary>
+void jpspath::calculate() {
 	nodes.clear();
+	nexts.clear();
 	
-	auto hashfunc = [](point& p) {
-		return p.x * 1024 + p.y;
+	auto hashfunc = [](point& p) { /// node ´Ã¾î³ª¸é ÀÌ°Å ¹Ù²ã¾ßµÊ -> Áß¿ä
+		return p.x * 10000 + p.y;
 	};
 	auto getNode = [&](point& p) -> Node& { return nodes[hashfunc(p)]; };
 
 	priority_queue < Node, vector<Node>, greater<Node>> pq(greater<Node>(), move(pqreserve)); //openlist
+	/*function<bool(Node*, Node*)> f = [](Node* a, Node* b) -> bool {
+		return *a > *b;
+	};
+	priority_queue < Node*, vector<Node*>, function<bool(Node*, Node*)>> pq(f, move(pqreserve));*/ //pqreserve must be vector<Node*>
 	//pq = priority_queue < Node, vector<Node>, greater<Node>>();
 	//nodes.reserve(1000000);
-
-	nodes[hashfunc(start)] = Node(start, 0, heuristic(start, end));
+	
+	nodes[hashfunc(start)] = Node(start, 0, 0, heuristic(start, end), nullptr);
 	
 	pq.push(nodes[hashfunc(start)]);
 	found = false;
 
-
-	while (!pq.empty() && pq.size() < 100000) {
-		Node cur = pq.top(); pq.pop();
+	while (!pq.empty()) {
+		//Node cur = pq.top();
+		point p = pq.top().p;
+		Node cur = getNode(p);
+		//
+		pq.pop();
 		if (cur.status == 1) continue;
 		cur.status = 1;
 		//cout << cur.p.x << " " << cur.p.y << endl;
 
 		if (cur.p == end) {
 			vector<vec2> path;
-			for (Node* node = &cur; node; node = node->parent)
+			for (Node* node = &cur, *prev = &cur; node; node = node->parent, prev = node) {
 				path.emplace_back(vec2(node->p.x, node->p.y));
+				//delete prev;
+			}
 
 			reverse(path.begin(), path.end());
 			results = path;
@@ -959,34 +1087,118 @@ void jpspath::calculate() {
 		
 		while (!nexts.empty()) {
 
-			point next = *(nexts.end() - 1);
-			if (usingbounding) { //check(cur, end) && !check(cur, next)
-				nexts.erase(nexts.end() - 1);
-				continue;
-			}
-			
+			point& next = *(nexts.end() - 1);
+			nexts.pop_back();
+
 			double newg = cur.g + heuristic(cur.p, next);
 			int hash = hashfunc(next);
-			
+
 			bool exists = nodes.count(hash);
 			if (exists && nodes[hash].status == 1) continue;
-			
-			if (!exists) { //open and newcost is smaller than old
-				Node node = Node(next, 0, newg, heuristic(next, end), &nodes[hashfunc(cur.p)]);
+
+			if (!exists || newg < nodes[hash].g) { //open and newcost is smaller than old
+				Node node = Node(next, 0, newg, heuristic(next, end), &getNode(cur.p));
 				nodes[hash] = node;
 				pq.emplace(node);
 			}
-			else {
-				Node &node = nodes[hash];
-				if (newg < node.g) {
-					node.g = newg;
-					node.h = heuristic(next, end);
-					node.parent = &nodes[hashfunc(cur.p)];
+
+		}
+		/*for (auto& next : identify_nextpoints(&cur)) {
+			double newg = cur.g + heuristic(cur.p, next);
+			int hash = hashfunc(next);
+			if (!nodes.count(hash) || newg < getNode(next).g) {
+				Node node = Node(next, newg, heuristic(next, end), &getNode(cur.p));
+				nodes[hash] = node;
+				pq.push(node);
+			}
+		}*/
+		
+		
+	}
+}
+
+/// <summary>
+/// pointer version of calc. same speed as above, works well
+/// </summary>
+/*void jpspath::calculate() {
+	nodes.clear();
+	nexts.clear();
+
+	/// <summary>
+	/// closelist ?
+	/// </summary>
+	/// 
+	//vector<Node> closelist = {};
+
+	auto hashfunc = [](point& p) { /// node ´Ã¾î³ª¸é ÀÌ°Å ¹Ù²ã¾ßµÊ -> Áß¿ä
+		return p.x * 10000 + p.y;
+	};
+	auto getNode = [&](point& p) -> Node* { return nodes[hashfunc(p)]; };
+
+	//priority_queue < Node, vector<Node>, less<Node>> pq(less<Node>(), move(pqreserve)); //openlist
+	function<bool(Node*, Node*)> f = [](Node* a, Node* b) -> bool {
+		return *a > *b;
+	};
+	priority_queue < Node*, vector<Node*>, function<bool(Node*, Node*)>> pq(f, move(pqreserve)); //pqreserve must be vector<Node*>
+	//pq = priority_queue < Node, vector<Node>, greater<Node>>();
+	//nodes.reserve(1000000);
+
+	nodes[hashfunc(start)] = new Node(start, 0, 0, heuristic(start, end), nullptr);
+
+	pq.push(nodes[hashfunc(start)]);
+	found = false;
+
+	while (!pq.empty()) {
+		//Node cur = pq.top();
+		Node* cur = pq.top();
+		//
+		pq.pop();
+		if (cur->status == 1) continue;
+		cur->status = 1;
+		//cout << cur.p.x << " " << cur.p.y << endl;
+
+		if (cur->p == end) {
+			vector<vec2> path;
+			for (Node* node = cur, *prev = cur; node; node = node->parent, prev = node) {
+				path.emplace_back(vec2(node->p.x, node->p.y));
+				delete prev;
+			}
+
+			reverse(path.begin(), path.end());
+			results = path;
+			found = true;
+			return;
+		}
+
+		identify_nextpoints(cur);
+
+		while (!nexts.empty()) {
+
+			point& next = *(nexts.end() - 1);
+			nexts.pop_back();
+
+			double newg = cur->g + heuristic(cur->p, next);
+			int hash = hashfunc(next);
+
+			bool exists = nodes.count(hash);
+			if (exists && nodes[hash]->status == 1) continue;
+
+			if (!exists || newg < nodes[hash]->g) { //open and newcost is smaller than old
+				Node* node = new Node(next, 0, newg, heuristic(next, end), getNode(cur->p));
+				nodes[hash] = node;
+				pq.emplace(node);
+			}
+			/*else {
+				Node* node = nodes[hash];
+				if (newg < node->g) {
+					node->g = newg;
+					node->p = next; //important to node making pathfind
+					node->h = heuristic(next, end);
+					node->parent = getNode(cur->p);
+					node->status = 0;
 					pq.emplace(node);
 				}
 			}
-
-			nexts.pop_back();
 		}
 		/*for (auto& next : identify_nextpoints(&cur)) {
 			double newg = cur.g + heuristic(cur.p, next);
@@ -997,15 +1209,23 @@ void jpspath::calculate() {
 				pq.push(node);
 			}
 		}
+
+
 	}
 }*/
 
+
+
+//this thing works properly, but slow : 20entity 60ms
 /*void jpspath::calculate() {
 	nodes.clear();
+	closelist.clear();
 	auto hashfunc = [](point& p) {
 		return p.x * 1024 + p.y;
 	};
-	auto getNode = [&](point& p) -> Node& { return *nodes[hashfunc(p)]; };
+
+	//openlist = vector<vector<Node>>(sizex, vector<Node>(sizey, Node()));
+	//auto getNode = [&](point& p) -> Node& { return *nodes[hashfunc(p)]; };
 
 	priority_queue < Node, vector<Node>, less<Node>> pq(less<Node>(), move(pqreserve)); //openlist
 	//pq = priority_queue < Node, vector<Node>, greater<Node>>();
@@ -1016,7 +1236,7 @@ void jpspath::calculate() {
 	startnode.p = start;
 	startnode.g = 0;
 	startnode.h = heuristic(start, end);
-	startnode.status = 0;
+	startnode.status = 1;
 	startnode.parent = nullptr;
 	nodes[hashfunc(start)] = &startnode;
 	
@@ -1026,65 +1246,72 @@ void jpspath::calculate() {
 
 
 	while (!pq.empty() && pq.size() < 100000) {
-		Node cur = pq.top(); pq.pop();
-		if (cur.status == 1) continue;
-		cur.status = 1;
+		Node* cur = &openlist[pq.top().p.x][pq.top().p.y];
+		pq.pop();
+
+		if (cur->status == 2) continue;
+		cur->status = 2;
 		//cout << cur.p.x << " " << cur.p.y << endl;
 
-		if (cur.p == end) {
+		if (cur->p == end) {
 			vector<vec2> path;
-			for (Node* node = &cur; node; node = node->parent)
+			for (Node* node = cur; node; node = node->parent)
 				path.emplace_back(vec2(node->p.x, node->p.y));
-			for (auto i : nodes) {
-				i.second->g = 0;
-				i.second->h = 0;
-				i.second->status = 0;
-				i.second->parent = nullptr;
+			
+			for (auto c : nodes) {
+				Node& node = openlist[c.second->p.x][c.second->p.y];
+				node.g = 0;
+				node.h = 0;
+				node.parent = nullptr;
+				node.status = 0;
 			}
 			reverse(path.begin(), path.end());
+			openlist = vector<vector<Node>>(sizex, vector<Node>(sizey, Node()));
 			results = path;
 			found = true;
 			return;
 		}
 		
-		identify_nextpoints(&cur);
+		identify_nextpoints(cur);
 		
 		while (!nexts.empty()) {
 
 			point next = *(nexts.end() - 1);
-			if (usingbounding) { //check(cur, end) && !check(cur, next)
-				nexts.erase(nexts.end() - 1);
-				continue;
-			}
+			nexts.pop_back();
+
+			double newg = cur->g + heuristic(cur->p, next);
 			
-			double newg = cur.g + heuristic(cur.p, next);
 			int hash = hashfunc(next);
+
+			if (openlist[next.x][next.y].status == 2) continue;
 			
-			bool exists = nodes.count(hash);
-			if (exists && nodes[hash]->status == 1) continue;
-			
-			if (!exists) { //open and newcost is smaller than old
+			if (openlist[next.x][next.y].status == 0) { //open and newcost is smaller than old
 				Node& node = openlist[next.x][next.y];
 				node.p = next;
-				node.status = 0;
+				node.status = 1;
 				node.g = newg;
 				node.h = heuristic(next, end);
-				node.parent = &openlist[cur.p.x][cur.p.y];
+				node.parent = &openlist[cur->p.x][cur->p.y];
 					//Node(next, 0, newg, heuristic(next, end), &nodes[hashfunc(cur.p)]);
 				nodes[hash] = &node;
 				pq.emplace(node);
+				//closelist.emplace_back(&node);
 			}
 			else {
 				Node& node = openlist[next.x][next.y];
 				if (newg < node.g) {
+					node.p = next;
+					node.status = 1;
 					node.g = newg;
 					node.h = heuristic(next, end);
-					node.parent = &openlist[cur.p.x][cur.p.y];
+					node.parent = &openlist[cur->p.x][cur->p.y];
+					nodes[hash] = &node;
 					pq.emplace(node);
+					//closelist.emplace_back(&node);
 				}
 			}
 
-			nexts.pop_back();
+			
 		}
 		/*for (auto& next : identify_nextpoints(&cur)) {
 			double newg = cur.g + heuristic(cur.p, next);
@@ -1096,6 +1323,7 @@ void jpspath::calculate() {
 			}
 		}
 	}
+	openlist = vector<vector<Node>>(sizex, vector<Node>(sizey, Node()));
 }*/
 
 bool jpspath::lineofsight(vec2 posa, vec2 posb) { //true º¸ÀÓ false º®ÀÌ¶û Ãæµ¹

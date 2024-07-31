@@ -47,10 +47,10 @@ void mouse::render() { //TODO: need to assume shaderProgram called.
 void mouse::update() {
 	if (mouse_status[leftmouse] == DRAGGING) {
 		// 사각형 크기 업데이트
-		float x1 = (2.0f * clickposx) / sizex - 1;
-		float y1 = 1.0f - (2.0f * clickposy) / sizey;
-		float x2 = (2.0f * mousex) / sizex - 1;
-		float y2 = 1.0f - (2.0f * mousey) / sizey;
+		float x1 = (2.0f * clickposy) / sizey - 1;
+		float y1 = 1.0f - (2.0f * clickposx) / sizex;
+		float x2 = (2.0f * mousey) / sizey - 1;
+		float y2 = 1.0f - (2.0f * mousex) / sizex;
 
 		vertice[0] = x1; vertice[1] = y1; // Bottom left
 		vertice[3] = x2; vertice[4] = y1; // Bottom right
@@ -115,14 +115,14 @@ void mouse::update() {
 
 	if ((mouse_status[leftmouse] == DRAGGING || mouse_status[leftmouse] == PRESS) && keys_status[LALT] == PRESS) {
 		cout << "changing map..., adding..." << endl;
-	
+
 		int bounding_size = 5;
 		int minx = glm::max(0, mousex - bounding_size);
 		int miny = glm::max(0, mousey - bounding_size);
 		int maxx = glm::min(sizex - 1, mousex + bounding_size);
 		int maxy = glm::min(sizey - 1, mousey + bounding_size);
 
-		
+
 		for (int i = minx; i <= maxx; i++) {
 			for (int j = miny; j <= maxy; j++) {
 				arr[i][j] = 1;

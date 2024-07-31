@@ -12,24 +12,31 @@
 #include <algorithm>
 #include <iterator>
 #include <unordered_map>
+#include <map>
 #include <array>
 #include <bitset>
 #include <queue>
 #include <functional>
 #include <chrono>
 #include <filesystem>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 
 using namespace std;
 using namespace glm; 
 
 
-static const int sizex = 1024;// 9; //const
-static const int sizey = 1024 ;// 5;
+static const int sizex = 1024;// 5; //const
+static const int sizey = 1024;// 9;
 static const int cellsize = 1;
-static const string mapfile = "map.txt";
+static const string mapfile = "map.txt";//"map4096.txt";
 
 static volatile double nowtime;
 static volatile double prevtime;
+
+const int keys_len = 8;
+const int mouse_len = 4;
 
 typedef enum keys : int {
 	ESC, S, LCTRL, n1, n2, n3, n4, LALT
@@ -43,7 +50,7 @@ typedef enum mousemotion : int {
 	leftmouse, rightmouse
 }mousemotion;
 namespace input {
-	extern status keys_status[sizeof(keys)];
+	extern status keys_status[keys_len];
 	extern int mousex;
 	extern int mousey;
 	extern int clickposx;
@@ -51,7 +58,7 @@ namespace input {
 	extern bool togglebbox;
 	extern double timeold;
 	extern double timenow;
-	extern status mouse_status[sizeof(mousemotion)];
+	extern status mouse_status[mouse_len];
 }
 namespace mapinfo {
 	//extern int arr[sizey / cellsize][sizex / cellsize];

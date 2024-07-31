@@ -22,3 +22,4 @@ private:
 	vector<unsigned int> indices;
 	vector<vector<point>> * boxes;
 };
+

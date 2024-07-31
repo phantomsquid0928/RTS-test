@@ -103,5 +103,5 @@ void block::update() {
 
 }
 mat4 block::getaabb() {
-	return mat4(1);
+	return mat4(1.0f);
 }

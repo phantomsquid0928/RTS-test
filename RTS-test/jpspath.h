@@ -28,8 +28,11 @@ public:
 	//void bakemap();
 	bool usingbounding;
 
-	vector<point> getbbox(vector<point>& inputs);
+	vector<point> getbbox(vector<point>& inputs, int size);
 	bool isinbbox(vector<point> box, point& pt);
+
+	unordered_map<int, vector<point>> getctable();
+	vector<point> getjp();
 	
 private:
 	inline point jump(point cur, int idx);
@@ -48,7 +51,7 @@ private:
 	
 	void expandCluster(vector<point>& points, point& p, int clusterid, double eps, int minpts, vector<int>& cluster);
 
-	int find(int clusternum) {
+	/*int find(int clusternum) {
 		if (unionfind[clusternum] == clusternum) return clusternum;
 		else {
 			return unionfind[clusternum] = find(unionfind[clusternum]);
@@ -61,11 +64,12 @@ private:
 	}
 	int check(int a, int b) {
 		return find(a) == find(b) ? 1 : 0;
-	}
+	}*/
 
 	vector<vector<int>>* map;
 	vector<vector<vector<int>>> table;
-	Node openlist[sizex][sizey] = {};
+	vector<vector<Node>> openlist;
+	//Node openlist[sizex][sizey];
 	
 
 	/// <summary>
@@ -73,16 +77,25 @@ private:
 	/// </summary>
 	vector<Node> pqreserve;
 	unordered_map<int, Node> nodes; //closedlist
-	priority_queue<Node, vector<Node>, less<Node>> pq;
+	///unordered_map<int, Node*> nodes;
+	//priority_queue<Node, vector<Node>, less<Node>> pq;
 	vector<point> nexts;
+	vector<Node*> closelist;
+
+	unordered_map<int, vector<point>> cboundtable;//using now
 
 
 	/// <summary>
 	/// dbscan vars
+	/// dbscan seems useless
 	/// </summary>
-	vector<int> clusternumbers;
+	vector<int> clusternumbers; //deprecated?
+
+
 	vector<vector<point>> convexhulls;
 	unordered_map<int, vector<point>> clusters;
-	int unionfind[100000]; //maybe?
+	
+
+	vector<point> jps;//for show on screen
 };
 

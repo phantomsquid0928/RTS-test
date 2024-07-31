@@ -6,6 +6,16 @@ using namespace input;
 using namespace mapinfo;
 //이등변삼각형 예각부분 dir
 //latest version of rendering objects
+inline bool isvalid(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
+	return x >= 0 && y >= 0 && x < sizex&& y < sizey;
+}
+inline bool iswall(int x, int y, const vector<vector<int>>* map) {
+	return !isvalid(x, y, map) || ((*map)[x][y] == 1 || (*map)[x][y] == 2);
+}
+inline bool ispassible(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
+	return isvalid(x, y, map) && ((*map)[x][y] != 1 && (*map)[x][y] != 2);
+}
+
 entity::entity(const vector<array<float, 3>>& location) {
 	vcode = readFile("shader/entity_vertex.glsl"); //mod
 	fcode = readFile("shader/entity_fragment.glsl");
@@ -36,7 +46,8 @@ void entity::create() { //TODO : refactoring of vertices, indices needed
 	curpathidx.resize(location->size(), -1);
 	rotations.resize(location->size(), 0.0f); //같은 entity 갯수
 	velocity.resize(location->size(), vec2(0, 0));
-	//reached.resize(location->size(), false);
+	accel.resize(location->size(), vec2(0, 0));
+	reached.all();
 
 	int i = 0;
 	for (auto p : *location) {  //삼각형으로 바꿈.
@@ -46,19 +57,6 @@ void entity::create() { //TODO : refactoring of vertices, indices needed
 		float y1 = 0.0f;
 		float y2 = (float)size / 2;
 
-		//vertices.insert(vertices.end(), {
-		//	x1, y1, 0.0f,   // 0, 0
-		//	x2, y1, 0.0f,    // 2, 0
-		//	x1, y2, 0.0f,    //0, 1
-		//	x1, -y2, 0.0f    //0, -1
-		//	});
-
-		//unsigned int base = i * 4;
-		//indices.insert(indices.end(), {
-		//	base, base + 1, base + 2,
-		//	base + 3, base + 1, base
-		//	});
-		//i++;
 		vertices.insert(vertices.end(), {
 			x2, y1, 0.0f,    // 2, 0
 			x1, y2, 0.0f,    //0, 1
@@ -101,9 +99,9 @@ void entity::render() { //TODO: need to assume shaderProgram called.
 		mat4 project = mat4(1.0f);
 
 		//model = translate(model, vec3(2 * entitylist[i][0] / sizex - 1, 1 - 2 * entitylist[i][1] / sizey, 0));
-		model = translate(model, vec3(entitylist[i][0], entitylist[i][1], 0));
+		model = translate(model, vec3(entitylist[i][1], entitylist[i][0], 0));
 		model = rotate(model, rotations[i], vec3(0.0f, 0.0f, 1.0f));
-		project = ortho(0.0f, (float)sizex, (float)sizey, 0.0f, -1.0f, 1.0f);
+		project = ortho(0.0f, (float)sizey, (float)sizex, 0.0f, -1.0f, 1.0f);
 
 		GLuint colorizer = glGetUniformLocation(shaderProgram, "color");
 		if (selected[i]) {
@@ -141,8 +139,13 @@ void entity::update(float tick) { //will be called per tick?
 	//apply allginment
 	//apply cohesion
 
-	for (auto& [x, y, i] : destlist) { //move.
+	//artificial potential field 적용
+
+	for (auto& [x, y, i] : destlist) { //calc accel
+		if (x == -1) //no dest
+			continue;
 		//routing sequence
+		accel[i] = vec2(0, 0);
 		vec2 curpos = vec2(entitylist[i][0], entitylist[i][1]);
 
 		vec2 olddirv = velocity[i];
@@ -150,42 +153,57 @@ void entity::update(float tick) { //will be called per tick?
 		vec2 dirv = normalize(vec2(x - entitylist[i][0], y - entitylist[i][1])); //vector to go
 		vec2 selected = 1 > hypot(realv.x, realv.y) ? realv : dirv; //v vector maximum len 1
 		//selected = delta v = accel
-		vec2 dir = selected;
+		//vec2 dir = selected;
 
 		for (int k = 0; k < 60; k++) {
 			for (int j = 1; j <= size; j++) {
 				vec2 radius = curpos + j * vec2(cos(6 * k), sin(6 * k));
 				if (radius.x < 0 || radius.x >= sizex || radius.y < 0 || radius.y >= sizey) continue;
-				if (arr[radius.x][radius.y] == 1 || arr[radius.x][radius.y] == 2) {
+				if (iswall(radius.x, radius.y, &arr)) {
 					vec2 vertical = vec2(cross(vec3(selected, 0), vec3(0, 0, 1)));
 					selected += 0.01 * size / j * -vec2(cos(k * 6), sin(k * 6));
 				}
 			}
 		}
 		//selected = normalize(selected);
-		for (auto e : entitylist) {
+		for (auto &e : entitylist) {
 			if (e[2] == i) continue;
 			vec2 neighborpos = vec2(e[0], e[1]);
 			vec2 diff = curpos - neighborpos;
 			double dist = hypot(diff.x, diff.y);
-			if (dist <  2 * size) {
+			if (dist < (double)2 * size) {
 
 				vec2 vertical = vec2(cross(vec3(selected, 0), vec3(0, 0, 1)));
-				selected += 2 * size / dist * normalize(diff + vertical);
+				selected += (double)2 * size/ dist * normalize(diff + vertical);
+				accel[e[2]] -=  selected;
+				//velocity[e[2]] += selected;
 			}
 		}
-	
+		accel[i] += selected;
 
-		//check if reached checkpoint, if entity is member of group, then if expression must be changed to centroid[x]'s location
-		if (hypot(entitylist[i][0] - x, entitylist[i][1] - y) > 1.5 * size) { //size 군집 크기로 수정 필요
+	}
+
+	//RVO
+	for (auto& [x, y, i] : destlist) {
+		for (auto& [a, b, j] : entitylist) {
+			if ((int)i >= (int)j) continue;
+			//get rvo from velocity[i], velocity[j] by and apply it.
+			//
+			//currently disabled.
+		}
+	}
+
+
+	for (auto& [x, y, i] : destlist) { //move
+		
+		if (hypot(entitylist[i][0] - x, entitylist[i][1] - y) > 1.2 * size && curpathidx[i] != -1) { //size수정 필요?
 			//sqrt(pow(entitylist[i][0] - x, 2) + pow(entitylist[i][1] - y, 2)) > 11) {
 			reached[i] = false;
 
-			velocity[i] = 0.9 * velocity[i] + 1.1 * selected; //v = v + delta v
-
+			velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i]; //v = friction * v + delta v
 			vec2 oldloc = vec2(entitylist[i][0], entitylist[i][1]);
 			//vec2 newloc = oldloc + 70 * selected * tick; //time slice by fps
-			vec2 newloc = oldloc + 10 * velocity[i] * tick; //60 is velocity...
+			vec2 newloc = oldloc + 10 * velocity[i] * tick; //60 is velocity... friction * v * t + (a) * t^2
 			//vec2 newloc = oldloc + dirv * 1000 * tick;
 
 			
@@ -196,29 +214,46 @@ void entity::update(float tick) { //will be called per tick?
 			 //newloc.x 로 할지 x로 할지 생각해야 아님 다른 방법 필요
 
 
-			float res = dot(vec2(1, 0), normalize(velocity[i]));
+			float res = dot(vec2(0, 1), normalize(velocity[i]));
 			
-			rotations[i] = dirv.y > 0 ? acos(res) : -acos(res);
+			rotations[i] = velocity[i].x > 0 ? acos(res) : -acos(res);
 		}
 		else {
 			reached[i] = true;
 			
+			velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i]; //v = v + delta v
 
-			x = entitylist[i][0];
-			y = entitylist[i][1];
-			entitylist[i] = { x, y, i };
+			vec2 oldloc = vec2(entitylist[i][0], entitylist[i][1]);
+			//vec2 newloc = oldloc + 70 * selected * tick; //time slice by fps
+			vec2 newloc = oldloc + 10 * velocity[i] * tick; //60 is velocity... vold * t + a * t^2
+			//vec2 newloc = oldloc + dirv * 1000 * tick;
+
+
+
+			//vec2 destv = vec2(x, y);
+			//entitylist[(int)i] = { newloc.x, newloc.y, i };
+			entitylist[(int)i] = { newloc.x, newloc.y, i };
+			 //newloc.x 로 할지 x로 할지 생각해야 아님 다른 방법 필요
+			x = newloc.x;
+			y = newloc.y;
+
+			float res = dot(vec2(0, 1), normalize(velocity[i]));
+
+			
 			
 			//velocity[i] = vec2(0, 0);
 
-			if (paths[i] == nullptr) continue;
+			
 			int curidx = getpathidx(i);
 			if (curidx == -1) continue;
+
 			//cout << i << " : " << curidx << endl;
 			//cout << recentt ime << endl;
 			if (curidx == paths[i]->size()) { //reached endpoint
 				delete paths[i];
 				paths[i] = nullptr;
-				
+				velocity[i] = vec2(0, 0);
+				accel[i] = vec2(0, 0);
 				continue;
 			}
 

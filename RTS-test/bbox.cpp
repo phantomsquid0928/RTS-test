@@ -32,7 +32,7 @@ void bbox::create() { //TODO : refactoring of vertices, indices needed
 
 		for (auto &k : i) {
 			vertices.insert(vertices.end(), {
-				(float)abs(k.x - i[0].x), (float)abs(k.y - i[0].y), 0
+				(float)abs(k.y - i[0].y), (float)abs(k.x - i[0].x), 0
 				});
 			num++;
 		}
@@ -76,9 +76,9 @@ void bbox::render() { //TODO: need to assume shaderProgram called.
 
 
 		//model = translate(model, vec3(2 * entitylist[i][0] / sizex - 1, 1 - 2 * entitylist[i][1] / sizey, 0));
-		model = translate(model, vec3(position, 0));
+		model = translate(model, vec3(position.y, position.x, 0));
 
-		project = ortho(0.0f, (float)sizex, (float)sizey, 0.0f, -1.0f, 1.0f);
+		project = ortho(0.0f, (float)sizey, (float)sizex, 0.0f, -1.0f, 1.0f);
 
 		GLuint colorizer = glGetUniformLocation(shaderProgram, "color");
 		/*if (selected[i]) {
@@ -118,7 +118,7 @@ void bbox::update() {
 
 		for (auto& k : i) {
 			vertices.insert(vertices.end(), {
-				(float)abs(k.x - i[0].x), (float)abs(k.y - i[0].y), 0
+				(float)abs(k.y - i[0].y), (float)abs(k.x - i[0].x), 0
 				});
 			num++;
 		}

@@ -23,7 +23,7 @@ inline bool astarpath::ispassible(int x, int y, const vector<vector<int>>* map) 
 	return isvalid(x, y, map) && ((*map)[x][y] != 1 && (*map)[x][y] != 2);
 }
 inline bool astarpath::isvalid(int x, int y, const vector<vector<int>>* map) { //TODO : map is mapinfo :: arr
-	return x >= 0 && y >= 0 && x < sizex&& y < sizey;
+	return x >= 0 && y >= 0 && x < sizex && y < sizey;
 }
 
 

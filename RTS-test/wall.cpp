@@ -32,13 +32,13 @@ void wall::create() { //bulk loading walltypes (wall ...)
 	indices.clear();
 
 	int cnt = 0;
-	for (int i = 0; i < sizey; i++) {
-		for (int j = 0; j < sizex; j++) {
+	for (int i = 0; i < sizex; i++) {
+		for (int j = 0; j < sizey; j++) {
 			if (arr[i][j] != 1) continue;
-			float x1 = (2.0f * i) / sizex - 1.0f;
-			float y1 = 1.0f - (2.0f * j) / sizey;
-			float x2 = (2.0f * (i + size)) / sizex - 1.0f;
-			float y2 = 1.0f - (2.0f * (j + size)) / sizey;
+			float x1 = (2.0f * j) / sizey - 1.0f;
+			float y1 = 1.0f - (2.0f * i) / sizex;
+			float x2 = (2.0f * (j + size)) / sizey - 1.0f;
+			float y2 = 1.0f - (2.0f * (i + size)) / sizex;
 			vertices.insert(vertices.end(), {
 				x1, y1, 0.0f,
 				x2, y1, 0.0f,
@@ -76,13 +76,13 @@ void wall::update() {
 	indices.clear();
 
 	int cnt = 0;
-	for (int i = 0; i < sizey; i++) {
-		for (int j = 0; j < sizex; j++) {
+	for (int i = 0; i < sizex; i++) {
+		for (int j = 0; j < sizey; j++) {
 			if (arr[i][j] != 1) continue;
-			float x1 = (2.0f * i) / sizex - 1.0f;
-			float y1 = 1.0f - (2.0f * j) / sizey;
-			float x2 = (2.0f * (i + size)) / sizex - 1.0f;
-			float y2 = 1.0f - (2.0f * (j + size)) / sizey;
+			float x1 = (2.0f * j) / sizey - 1.0f;
+			float y1 = 1.0f - (2.0f * i) / sizex;
+			float x2 = (2.0f * (j + size)) / sizey - 1.0f;
+			float y2 = 1.0f - (2.0f * (i + size)) / sizex;
 			vertices.insert(vertices.end(), {
 				x1, y1, 0.0f,
 				x2, y1, 0.0f,
@@ -107,5 +107,5 @@ void wall::update() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 mat4 wall::getaabb() {
-	return mat4(1);
+	return mat4(1.0f);
 }

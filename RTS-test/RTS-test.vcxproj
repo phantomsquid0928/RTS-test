@@ -124,8 +124,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\dhtnw\source\repos\Project1\Project1\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);glew32.lib;glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);freetype.lib;glew32.lib;glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>
       </AdditionalOptions>
     </Link>
@@ -155,6 +155,7 @@
     <ClCompile Include="bbox.cpp" />
     <ClCompile Include="block.cpp" />
     <ClCompile Include="entity.cpp" />
+    <ClCompile Include="flowfield.cpp" />
     <ClCompile Include="jpspath.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mouse.cpp" />
@@ -170,6 +171,7 @@
     <ClInclude Include="bbox.h" />
     <ClInclude Include="block.h" />
     <ClInclude Include="entity.h" />
+    <ClInclude Include="flowfield.h" />
     <ClInclude Include="headers.hpp" />
     <ClInclude Include="jpspath.h" />
     <ClInclude Include="mouse.h" />

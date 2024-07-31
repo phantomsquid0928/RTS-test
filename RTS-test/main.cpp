@@ -9,6 +9,8 @@
 #include "wall.h"
 #include "jpspath.h"
 #include "bbox.h"
+#include "text.h"
+#include "flowfield.h"
 
 int loadMap();
 int saveMap();
@@ -29,7 +31,7 @@ string readFile(const char *filepath);
 GLuint createShaderProgram(const char* vertexShaderSource, const char* fragmentShaderSource);
 
 namespace input {
-	status keys_status[sizeof(keys)];
+	status keys_status[keys_len];
 	int mousex;
 	int mousey;
 	int clickposx;
@@ -38,21 +40,21 @@ namespace input {
 	double timeold;
 	double timenow;
 	double recenttime;
-	status mouse_status[sizeof(mousemotion)];
+	status mouse_status[mouse_len];
 }
 namespace mapinfo {
-	vector<vector<int>> arr(sizey / cellsize, vector<int> (sizex / cellsize, 0));
+	vector<vector<int>> arr(sizex / cellsize, vector<int> (sizey / cellsize, 0));
 	//int arr[sizey / cellsize][sizex / cellsize] = { 0 };
 	//vector<array<int, 3>> blocklist;
 	vector<array<float, 3>> entitylist;
 	vector<array<float, 3>> destlist;
 	vector<point> walllist;
-	vector<vector<point>> conjugates;
+
 	vector<vector<point>> hulls;
 	vector<vector<point>> boxes;
 	bitset<100> selected; //TODO: change this after
 
-	int radius = 5;
+	int radius = 10;
 }
 
 pathfinders *pf;
@@ -62,6 +64,8 @@ path* p;
 entity *entities;
 wall* walls;
 bbox* bboxes;
+text* textmanager;
+flowfield* f;
 
 //vector<entity> entitylist;
 
@@ -82,13 +86,17 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
+	
+
 	GLFWwindow* window;
 
-	window = glfwCreateWindow(sizex, sizey, "____", nullptr, nullptr);
+	window = glfwCreateWindow(sizey, sizex, "____", nullptr, nullptr); // / 4 on sizes when using 4096
 
 	glfwMakeContextCurrent(window);
 
-	//callbacks
+	//glEnable(GL_CULL_FACE); <- ??? this will erase all, entities,text,  walls but not bboxes and mouse. 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);   //these two makes text appear well fk
 
 	//set pf method as astar
 	pf = new pathfinders();
@@ -97,24 +105,27 @@ int main() {
 	pf->setfunc(a);
 	//pf->setfunc(j);
 
-	
-
-	glfwSetKeyCallback(window,	keyhandler);
+	//callbacks
+	glfwSetKeyCallback(window, keyhandler);
 	glfwSetMouseButtonCallback(window, clickhandler);
 	glfwSetCursorPosCallback(window, mousehandler);
 
-	glewInit();
+	
 
 	int bufferWidth, bufferHeight;
 	glfwGetFramebufferSize(window, &bufferWidth, &bufferHeight);
-	
+
 	glViewport(0, 0, bufferWidth, bufferHeight);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	
+
 	glOrtho(0.0, bufferWidth, 0.0, bufferHeight, -100.0, 100.0);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
+
+
+	glewInit();
+
 
 	mouse m = mouse();
 	m.render();
@@ -124,9 +135,22 @@ int main() {
 	//
 	/*arr = {{0, 0, 1, 0, 0, 0, 1, 0, 0},
 			{0, 0, 0, 0, 0, 0, 1, 0, 0 },
-			{0, 1, 1, 0, 0, 0, 1, 1, 0 }, 
-			{0, 0, 1, 0, 0, 0, 0, 0, 0 }, 
+			{0, 1, 1, 0, 0, 0, 1, 1, 0 },
+			{0, 0, 1, 0, 0, 0, 0, 0, 0 },
 			{0, 0, 1, 0, 0, 0, 1, 0, 0 }, };
+
+	f = new flowfield();
+	pf->setfunc(f);
+	pf->setend(vec2(4, 3));
+	pf->calculate();
+	vector<vector<flownode>> resfield = f->getfield();
+	for (auto &i : resfield) {
+		for (auto& j : i) {
+			if (j.bestcost == INT_MAX) cout << "-" << " ";
+			else cout << j.bestcost << " ";
+		}
+		cout << endl;
+	}
 	j->precalc(); //jps need precalc.
 	vector<vector<vector<int>>> t = j->gettable();
 	vector<vector<int>> jpm(3 * sizex, vector<int>(3 * sizey, 0));
@@ -150,7 +174,7 @@ int main() {
 		int k = 0;
 		for (auto &j : i) {
 			if (k % 3 == 0) printf("|");
-			
+
 			printf("%3d", j);
 			k++;
 		}
@@ -171,31 +195,28 @@ int main() {
 	loadMap();
 	j->precalc(); //jps need precalc.
 	//j->boundingcalc();
-	auto res = j->getclusters();
-	
+	auto res = j->getctable();
+	auto jps = j->getjp();
+
 	int num = 0;
-	for (auto &i : res) {
-		vector<point> box = j->getbbox(i);
-		
+
+	for (auto& i : res) {
+		vector<point> box = j->getbbox(i.second, 1);
+
 		cout << "[";
-		for (auto &a : box) {
-			cout << "(" <<  a.x << ", " << a.y << "), ";
+		for (auto& a : box) {
+			cout << "(" << a.x << ", " << a.y << "), ";
 		}
 		boxes.push_back(move(box));
 		cout << "]" << endl;
 		num++;
 	}
+
+	for (auto& p : jps) {
+		boxes.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
+	}
 	cout << "area num : " << num << endl;
 
-	//jump point 보는용
-	/*auto t = j->gettable();
-	for (int i = 0; i < sizex; i++) {
-		for (int j = 0; j < sizey; j++) {
-			if (t[i][j][8] != 0) {
-				boxes.push_back(vector<point>({ point(i, j) , point(i + 1, j), point(i + 1, j + 1), point(i, j + 1)}));
-			}
-		}
-	}*/
 	bboxes = new bbox(&boxes);
 	//loadEntities();
 	bboxes->create();
@@ -204,7 +225,7 @@ int main() {
 	makeEntities();
 	selected.reset();
 
-	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+	
 
 	walls = new wall();
 	walls->create();
@@ -214,38 +235,49 @@ int main() {
 	p = new path();
 	p->create();
 
+	textmanager = new text("shader/arial.ttf");
+
+	textmanager->addText(0, "astar     spent: NONE", vec4(0, 1, 1, 1), vec2(800, 950), 0.3f);
+	textmanager->addText(1, "jps+      spent: NONE", vec4(0, 1, 1, 1), vec2(800, 975), 0.3f);
+	textmanager->addText(2, "jps+ goal spent: NONE", vec4(0, 1, 1, 1), vec2(800, 1000), 0.3f);
+	/*auto chars = textmanager->getLoadedChars();
+	for (auto &c : chars) {
+		cout << (char)c.first << c.second.TextureID << endl;
+	}*/
+
 	recenttime = 0;
 
 	//
 	destlist = entitylist;
-
+	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	timeold = glfwGetTime();
 	int count = 0;
 	do {
 		
 		glClear(GL_COLOR_BUFFER_BIT);
 		//cout << (double)count / (timenow - timeold) << endl; //fps
-
+		
 		tick(&count);
 		entities->render();
-		
+		textmanager->render();
+		//textmanager.renderOne("hello", 100.0f, 100.0f, 1.0f, vec3(0, 1.f, 1.f));
 		//entities->
 		int i = 0;
 
-		
+
 		walls->render();
-		walls->update();
 		m.update();
 		if (togglebbox)
 			bboxes->render();
-
-
+		if ((keys_status[LALT] == PRESS || keys_status[LCTRL] == PRESS) && (mouse_status[leftmouse] == PRESS || mouse_status[leftmouse] == DRAGGING))
+			walls->update();
+		
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 		count++;
 	} while (glfwGetKey(window, GLFW_KEY_DELETE) != GLFW_PRESS && glfwWindowShouldClose(window) == 0);
 
-	//saveMap();
+	saveMap();
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
@@ -296,8 +328,8 @@ int loadMap() {
 			if (isdigit(i)) {
   				arr[idy][idx] = i - '0'; //wall = 1 now
 				if (arr[idy][idx] == 1) {
-					for (int k = std::max(0, idy - radius); k < std::min(sizey, idy + radius); k++) {
-						for (int t = std::max(0, idx - radius); t < std::min(sizex, idx + radius); t++) {
+					for (int k = std::max(0, idy - radius); k < std::min(sizex, idy + radius); k++) {
+						for (int t = std::max(0, idx - radius); t < std::min(sizey, idx + radius); t++) {
 							if (arr[k][t] != 1) arr[k][t] = 2;
 						}
 					}
@@ -325,10 +357,10 @@ int saveMap() {
 	ofstream ofs;
 	ofs.open(mapfile, ios::out | ios::trunc);
 
-	for (int i = 0; i < sizey / cellsize; i++) {
-		for (int j = 0; j < sizex / cellsize; j++) {
+	for (int i = 0; i < sizex / cellsize; i++) {
+		for (int j = 0; j < sizey / cellsize; j++) {
 			if (arr[i][j] < 0) { // wall
-				ofs << "w";
+				ofs << "1";
 			}
 			else {
 				if (arr[i][j] == 2) {
@@ -358,20 +390,24 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 	}
 	if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_PRESS) {
 		cout << "lctrl pressed, erasing wall mode on" << endl;
+		
 		keys_status[LCTRL] = PRESS;
 	}
 	if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_RELEASE) { //need precalc on changed map
 		cout << "lctrl released" << endl;
 		keys_status[LCTRL] = RELEASE;
+		
 		if (j) {
 			j->precalc();
-			/*j->boundingcalc();
 
-			auto res = j->getclusters();
+			auto res = j->getctable();
+			auto jps = j->getjp();
 
+			int num = 0;
 			boxes.clear();
+
 			for (auto& i : res) {
-				vector<point> box = j->getbbox(i);
+				vector<point> box = j->getbbox(i.second, 1);
 
 				cout << "[";
 				for (auto& a : box) {
@@ -379,15 +415,20 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 				}
 				boxes.push_back(move(box));
 				cout << "]" << endl;
+				num++;
 			}
-			bboxes->update();*/
+
+			for (auto& p : jps) {
+				boxes.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
+			}
 		}
 	}
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		cout << "ESC pressed, clear bits" << endl;
 		keys_status[ESC] = PRESS;
-		arr = vector<vector<int>> (sizey / cellsize, vector<int>(sizex / cellsize, 0));
+		arr = vector<vector<int>> (sizex / cellsize, vector<int>(sizey / cellsize, 0));
 		selected.reset();
+		//walls->update()
 	}
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
 		cout << "ESC released" << endl;
@@ -396,19 +437,23 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 	if (key == GLFW_KEY_LEFT_ALT && action == GLFW_PRESS) {
 		cout << "ALT pressed, adding wall mode on" << endl;
 		keys_status[LALT] = PRESS;
+
 	}
 	if (key == GLFW_KEY_LEFT_ALT && action == GLFW_RELEASE) { //need precalc on changed map
 		cout << "ALT released" << endl;
+	
 		keys_status[LALT] = RELEASE;
 		if (j) {
 			j->precalc();
-			/*j->boundingcalc();
 
-			auto res = j->getclusters();
+			auto res = j->getctable();
+			auto jps = j->getjp();
 
+			int num = 0;
 			boxes.clear();
+
 			for (auto& i : res) {
-				vector<point> box = j->getbbox(i);
+				vector<point> box = j->getbbox(i.second, 1);
 
 				cout << "[";
 				for (auto& a : box) {
@@ -416,23 +461,28 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 				}
 				boxes.push_back(move(box));
 				cout << "]" << endl;
+				num++;
 			}
-			bboxes->update();*/
+
+			for (auto& p : jps) {
+				boxes.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
+			}
 		}
 	}
 }
 void mousehandler(GLFWwindow* window, double xpos, double ypos) { //움직일때만 콜백이구만
-	mousex = xpos;
-	mousey = ypos;
+	mousex = ypos;
+	mousey = xpos; /// 4 * xpos , 4 * ypos when using shrinkage
 	//cout << xpos << ypos << endl;
 	//TODO: mouse escape? <
 	if (mouse_status[leftmouse] == PRESS || mouse_status[leftmouse] == DRAGGING) { //drag // works!
 		//cout << "is dragging, " << mousex << " , " << mousey << " ~ " << clickposx << ", " << clickposy << endl;
 		mouse_status[leftmouse] = DRAGGING;
+		
 		//render rectangle, write this on other func area
 	}
 	else {
-		mouse_status[leftmouse] == NON;
+		mouse_status[leftmouse] = NON;
 	}
 }
 void clickhandler(GLFWwindow* window, int button, int action, int mods) {
@@ -480,8 +530,6 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 					entities->setpath((int)num, path);
 				}*/
 
-
-				cout << endl;
 				// TODO: jps 최적화... 
 				pf->setfunc(j);
 				pf->setstart(vec2(x, y));
@@ -490,40 +538,43 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 				pf->calculate();
 				//j->postsmooth();
 
-				auto jpsres = pf->getResult(); 
+				auto jpsres = pf->getResult();
 				cout << jpsres.size() << " !!!";
 				cout << "jps+ origin spent: " << pf->getusedtime() << endl;
 				jpstotal += pf->getusedtime();
-				
-				vector<vec2>* path = new vector<vec2>(jpsres);
-
-				if (jpsres.size() == 0) {
-					entities->setpath((int)num, nullptr);
-				}
-				else {
-					entities->setpath((int)num, path);
-					destlist[num] = { path->at(0).x , path->at(0).y, num };
-				}
-
-				/*
 
 				pf->setfunc(j);
 				pf->setstart(vec2(x, y));
 				pf->setend(vec2(clickposx, clickposy));
 				j->changemod(true);
 				pf->calculate();
-			
 				//j->postsmooth();
 
-				auto jpsoriginres = pf->getResult();
-				cout << jpsoriginres.size() << " !!!";
+				auto jpsgoalres = pf->getResult();
+				vector<vec2>* path = new vector<vec2>(jpsgoalres);
+
+				cout << jpsgoalres.size() << " !!!";
+				
+				
 				cout << "jps+ goal spent: " << pf->getusedtime() << endl;
 				jpsgoal += pf->getusedtime();
-				*/
+
+				if (jpsgoalres.size() == 0) {
+					entities->setpath((int)num, nullptr);
+				}
+				else {
+					entities->setpath((int)num, path);
+					destlist[num] = { path->at(0).x , path->at(0).y, num };
+				}
+				
+
 			}
 
 		}
 
+		textmanager->addText(0, "astar     spent: " + to_string(astartotal), vec4(0, 1, 1, 1), vec2(800, 950), 0.3f);
+		textmanager->addText(1, "jps+      spent: " + to_string(jpstotal), vec4(0, 1, 1, 1), vec2(800, 975), 0.3f);
+		textmanager->addText(2, "jps+ goal spent: " + to_string(jpsgoal), vec4(0, 1, 1, 1), vec2(800, 1000), 0.3f);
 		cout << "jps   : " << jpstotal << endl;
 		cout << "jps + goal : " << jpsgoal << endl;
 		cout << "astar : " << astartotal << endl;

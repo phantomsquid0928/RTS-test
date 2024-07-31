@@ -13,7 +13,7 @@ path::path() {
 
 	cout << "entity shader : " << shaderProgram << endl;
 
-	size = 1;
+	size = 3;
 
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
@@ -88,9 +88,9 @@ void path::render() { //TODO: need to assume shaderProgram called.
 
 
 				//model = translate(model, vec3(2 * entitylist[i][0] / sizex - 1, 1 - 2 * entitylist[i][1] / sizey, 0));
-				model = translate(model, vec3(a, 0));
+				model = translate(model, vec3(a.y, a.x, 0));
 
-				project = ortho(0.0f, (float)sizex, (float)sizey, 0.0f, -1.0f, 1.0f);
+				project = ortho(0.0f, (float)sizey, (float)sizex, 0.0f, -1.0f, 1.0f);
 
 				GLuint colorizer = glGetUniformLocation(shaderProgram, "color");
 				/*if (selected[i]) {
@@ -123,9 +123,9 @@ void path::render() { //TODO: need to assume shaderProgram called.
 
 
 		//model = translate(model, vec3(2 * entitylist[i][0] / sizex - 1, 1 - 2 * entitylist[i][1] / sizey, 0));
-		model = translate(model, vec3(p, 0));
+		model = translate(model, vec3(p.y, p.x, 0));
 
-		project = ortho(0.0f, (float)sizex, (float)sizey, 0.0f, -1.0f, 1.0f);
+		project = ortho(0.0f, (float)sizey, (float)sizex, 0.0f, -1.0f, 1.0f);
 
 		GLuint colorizer = glGetUniformLocation(shaderProgram, "color");
 		/*if (selected[i]) {
