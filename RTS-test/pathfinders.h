@@ -2,7 +2,7 @@
 #include "headers.hpp"
 struct point {
 	int x, y;
-	int clusternum = -1;
+	//int clusternum = -1;
 	point(int x, int y) : x(x), y(y) {}
 	point() : x(0), y(0) {}
 
@@ -16,9 +16,9 @@ struct point {
 	bool operator <(point& other) const {
 		return x < other.x || (x == other.x && y < other.y);
 	}
-	bool operator -(point& other) const {
-		return clusternum - other.clusternum;
-	}
+	//bool operator -(point& other) const {
+	//	return clusternum - other.clusternum;
+	//}
 };
 struct Node {
 	point p;
@@ -42,11 +42,14 @@ struct Node {
 struct flownode {
 	int x, y;
 	point bestdir;
+	bool isstart;
 	int cost;
 	int bestcost;
-	flownode(int x, int y, point bestdir = point(0, 0), int cost = 1, int bestcost = INT_MAX) : x(x), y(y), bestdir(bestdir), cost(cost), bestcost(bestcost)
+	bool visited;
+	flownode(int x, int y, point bestdir = point(0, 0), int cost = 1, int bestcost = INT_MAX, bool isstart = false, bool visited = false)
+		: x(x), y(y), bestdir(bestdir), cost(cost), bestcost(bestcost), isstart(false), visited(false)
 	{};
-	flownode() : x(0), y(0), bestdir(point(0, 0)), cost(1), bestcost(INT_MAX) {};
+	flownode() : x(0), y(0), bestdir(point(0, 0)), cost(1), bestcost(INT_MAX), isstart(false), visited(false) {};
 };
 class pathfinders
 {

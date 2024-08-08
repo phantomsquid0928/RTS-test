@@ -31,7 +31,7 @@ string readFile(const char *filepath);
 GLuint createShaderProgram(const char* vertexShaderSource, const char* fragmentShaderSource);
 
 namespace input {
-	status keys_status[keys_len];
+	
 	int mousex;
 	int mousey;
 	int clickposx;
@@ -40,7 +40,9 @@ namespace input {
 	double timeold;
 	double timenow;
 	double recenttime;
+	status keys_status[keys_len];
 	status mouse_status[mouse_len];
+	bool mode_status[mode_len];
 }
 namespace mapinfo {
 	vector<vector<int>> arr(sizex / cellsize, vector<int> (sizey / cellsize, 0));
@@ -53,19 +55,24 @@ namespace mapinfo {
 	vector<vector<point>> hulls;
 	vector<vector<point>> boxes;
 	bitset<100> selected; //TODO: change this after
-
+	
 	int radius = 10;
+
+
 }
 
 pathfinders *pf;
 astarpath *a;
 jpspath* j;
+flowfield* f;
 path* p;
+
+
 entity *entities;
 wall* walls;
 bbox* bboxes;
 text* textmanager;
-flowfield* f;
+
 
 //vector<entity> entitylist;
 
@@ -90,7 +97,7 @@ int main() {
 
 	GLFWwindow* window;
 
-	window = glfwCreateWindow(sizey, sizex, "____", nullptr, nullptr); // / 4 on sizes when using 4096
+	window = glfwCreateWindow(fixedy, fixedx, "____", nullptr, nullptr); // / 4 on sizes when using 4096
 
 	glfwMakeContextCurrent(window);
 
@@ -100,8 +107,9 @@ int main() {
 
 	//set pf method as astar
 	pf = new pathfinders();
+	f = new flowfield();
 	j = new jpspath();
-	a = new astarpath(vec2(0, 0), vec2(0, 0));
+	a = new astarpath();
 	pf->setfunc(a);
 	//pf->setfunc(j);
 
@@ -133,16 +141,18 @@ int main() {
 	//sizex = 9;
 	//sizey = 5;
 	//
-	/*arr = {{0, 0, 1, 0, 0, 0, 1, 0, 0},
+	/*cout << endl;
+	arr = {{0, 0, 1, 0, 0, 0, 1, 0, 0},
 			{0, 0, 0, 0, 0, 0, 1, 0, 0 },
 			{0, 1, 1, 0, 0, 0, 1, 1, 0 },
 			{0, 0, 1, 0, 0, 0, 0, 0, 0 },
 			{0, 0, 1, 0, 0, 0, 1, 0, 0 }, };
 
-	f = new flowfield();
-	pf->setfunc(f);
-	pf->setend(vec2(4, 3));
+	
+	/*pf->setfunc(f);
+	pf->setend(vec2(3, 3));
 	pf->calculate();
+
 	vector<vector<flownode>> resfield = f->getfield();
 	for (auto &i : resfield) {
 		for (auto& j : i) {
@@ -152,6 +162,8 @@ int main() {
 		cout << endl;
 	}
 	j->precalc(); //jps need precalc.
+	j->saveTable();
+	j->loadTable();
 	vector<vector<vector<int>>> t = j->gettable();
 	vector<vector<int>> jpm(3 * sizex, vector<int>(3 * sizey, 0));
 
@@ -193,10 +205,30 @@ int main() {
 	//sizex = 1024;
 	//sizey = 1024;
 	loadMap();
-	j->precalc(); //jps need precalc.
+
+	double usedtime = 0;
+	filesystem::path filePath("jpbakedmap.dat");
+	if (filesystem::exists(filePath)) {
+		cout << "existing, loading precalculated table. if u changed mapsize, then discard that file";
+		j->loadTable();
+	}
+	else {
+		cout << "no precalced file, calculating...";
+		chrono::system_clock::time_point start;
+		chrono::system_clock::time_point end;
+		start = chrono::system_clock::now();
+		j->precalc(); //jps need precalc.
+
+		end = chrono::system_clock::now();
+		typedef chrono::duration<double, std::milli> millisec;
+		
+		usedtime = chrono::duration_cast<millisec> (end - start).count();
+		cout << "precalc time : " << usedtime << " in ms" << endl;
+	}
 	//j->boundingcalc();
 	auto res = j->getctable();
 	auto jps = j->getjp();
+	auto jpsorigin = j->getclusters(); //debug
 
 	int num = 0;
 
@@ -212,9 +244,13 @@ int main() {
 		num++;
 	}
 
-	for (auto& p : jps) {
+	/*for (auto& p : jps) {
 		boxes.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
+	}*/
+	for (auto& box : jpsorigin) {
+		boxes.push_back(move(box));
 	}
+	
 	cout << "area num : " << num << endl;
 
 	bboxes = new bbox(&boxes);
@@ -230,16 +266,36 @@ int main() {
 	walls = new wall();
 	walls->create();
 
-	entities = new entity(entitylist);
+	entities = new entity(entitylist, f);
 	entities->create();
+
+	mode_status[rvo] = true;
+	int e = 36;
+	for (int i = 0; i < e; i++) {
+		int x = entitylist[i][0];
+		int y = entitylist[i][1];
+
+		int destx = 250 + 150 * cos(radians((float)10 * i + 180));
+		int desty = 250 + 150 * sin(radians((float)10 * i + 180));
+
+		vector<vec2>* path = new vector<vec2>();
+		path->push_back(vec2(x, y));
+		path->push_back(vec2(destx, desty));
+
+		entities->setpath(i, path);
+	}
 	p = new path();
 	p->create();
 
 	textmanager = new text("shader/arial.ttf");
 
-	textmanager->addText(0, "astar     spent: NONE", vec4(0, 1, 1, 1), vec2(800, 950), 0.3f);
-	textmanager->addText(1, "jps+      spent: NONE", vec4(0, 1, 1, 1), vec2(800, 975), 0.3f);
-	textmanager->addText(2, "jps+ goal spent: NONE", vec4(0, 1, 1, 1), vec2(800, 1000), 0.3f);
+	
+	textmanager->addText(0, "astar     spent: NONE", vec4(0, 1, 1, 1), vec2(800 * zoomx, 950 * zoomy), 0.3f * zoomx);
+	textmanager->addText(1, "jps+      spent: NONE", vec4(0, 1, 1, 1), vec2(800 * zoomx, 975 * zoomy), 0.3f * zoomx);
+	textmanager->addText(2, "jps+ goal spent: NONE", vec4(0, 1, 1, 1), vec2(800 * zoomx, 1000 * zoomy), 0.3f * zoomx);
+	textmanager->addText(3, "flowfield spent: NONE", vec4(0, 1, 1, 1), vec2(800 * zoomx, 925 * zoomy), 0.3f * zoomx);
+	textmanager->addText(4, "current mode: jpspath", vec4(0, 1, 1, 1), vec2(10 * zoomx, 1000 * zoomy), 0.3f * zoomx);
+	textmanager->addText(5, "precalc time was : " + to_string(usedtime), vec4(0, 1, 1, 1), vec2(10 * zoomx, 975 * zoomy), 0.3f * zoomx);
 	/*auto chars = textmanager->getLoadedChars();
 	for (auto &c : chars) {
 		cout << (char)c.first << c.second.TextureID << endl;
@@ -248,7 +304,6 @@ int main() {
 	recenttime = 0;
 
 	//
-	destlist = entitylist;
 	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	timeold = glfwGetTime();
 	int count = 0;
@@ -259,7 +314,7 @@ int main() {
 		
 		tick(&count);
 		entities->render();
-		textmanager->render();
+		
 		//textmanager.renderOne("hello", 100.0f, 100.0f, 1.0f, vec3(0, 1.f, 1.f));
 		//entities->
 		int i = 0;
@@ -267,6 +322,8 @@ int main() {
 
 		walls->render();
 		m.update();
+		textmanager->render();
+
 		if (togglebbox)
 			bboxes->render();
 		if ((keys_status[LALT] == PRESS || keys_status[LCTRL] == PRESS) && (mouse_status[leftmouse] == PRESS || mouse_status[leftmouse] == DRAGGING))
@@ -278,6 +335,7 @@ int main() {
 	} while (glfwGetKey(window, GLFW_KEY_DELETE) != GLFW_PRESS && glfwWindowShouldClose(window) == 0);
 
 	saveMap();
+	j->saveTable();
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
@@ -421,6 +479,8 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 			for (auto& p : jps) {
 				boxes.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
 			}
+
+			bboxes->update();
 		}
 	}
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
@@ -428,7 +488,7 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 		keys_status[ESC] = PRESS;
 		arr = vector<vector<int>> (sizex / cellsize, vector<int>(sizey / cellsize, 0));
 		selected.reset();
-		//walls->update()
+		walls->update();
 	}
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
 		cout << "ESC released" << endl;
@@ -467,12 +527,31 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 			for (auto& p : jps) {
 				boxes.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
 			}
+
+			bboxes->update();
 		}
 	}
+
+
+	//mode handling
+	if (key == GLFW_KEY_F && action == GLFW_RELEASE) {
+		cout << "f released, flow field on" << endl;
+		//eys_status[LALT] = PRESS;
+		mode_status[flowmode] ^= true;
+		textmanager->addText(4, (mode_status[flowmode] == true) ? "current mode : flowfield" : "current mode : jpspath", vec4(0, 1, 1, 1), vec2(10, 1000), 0.3f);
+		
+		//mode_status[pathmode] ^= true;
+	}
+	if (key == GLFW_KEY_R && action == GLFW_RELEASE) {
+		cout << (mode_status[rvo] == false ? "RVO on" : "RVO off") << endl;
+		//keys_status[ESC] = RELEASE;
+		mode_status[rvo] ^= true;
+	}
+	
 }
 void mousehandler(GLFWwindow* window, double xpos, double ypos) { //움직일때만 콜백이구만
-	mousex = ypos;
-	mousey = xpos; /// 4 * xpos , 4 * ypos when using shrinkage
+	mousex = zoomx * ypos;
+	mousey = zoomy * xpos; /// 4 * xpos , 4 * ypos when using shrinkage
 	//cout << xpos << ypos << endl;
 	//TODO: mouse escape? <
 	if (mouse_status[leftmouse] == PRESS || mouse_status[leftmouse] == DRAGGING) { //drag // works!
@@ -505,23 +584,30 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 		double astartotal = 0;
 		double jpstotal = 0;
 		double jpsgoal = 0;
+		double flowspent = 0;
+		pf->setfunc(f);
+		pf->setend(vec2(clickposx, clickposy));
+		pf->calculate();
+		flowspent = pf->getusedtime();
+
 		for (auto& [x, y, num] : entitylist) {
 			if (selected[num]) {
 				//destlist[num] = {(float)clickposx, (float)clickposy, num};
-				printf("%d 's direction changed to %d %d", (int)num, clickposx, clickposy);
+				//printf("%d 's direction changed to %d %d", (int)num, clickposx, clickposy);
 				
-
 				//astar
-				pf->setfunc(a);
-				pf->setstart(vec2(x, y));
-				pf->setend(vec2(clickposx, clickposy));
-				pf->calculate();
-				//a->postsmooth();
+				//pf->setfunc(a);
+				//pf->setstart(vec2(x, y));
+				//pf->setend(vec2(clickposx, clickposy));
+				//pf->calculate();
+				////a->postsmooth();
 
-				auto t = pf->getResult();
-				cout << t.size() << " !!!";
-				cout << "astar spent: " << pf->getusedtime() << endl;
-				astartotal += pf->getusedtime();
+				//auto t = pf->getResult();
+				//cout << t.size() << " !!!";
+				//cout << "astar spent: " << pf->getusedtime() << endl;
+				//astartotal += pf->getusedtime();
+
+				
  				/*vector<vec2>* path = new vector<vec2>(t);
 				if (t.size() == 0) {
 					entities->setpath((int)num, nullptr);
@@ -539,8 +625,8 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 				//j->postsmooth();
 
 				auto jpsres = pf->getResult();
-				cout << jpsres.size() << " !!!";
-				cout << "jps+ origin spent: " << pf->getusedtime() << endl;
+				//cout << jpsres.size() << " !!!";
+				//cout << "jps+ origin spent: " << pf->getusedtime() << endl;
 				jpstotal += pf->getusedtime();
 
 				pf->setfunc(j);
@@ -553,38 +639,58 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 				auto jpsgoalres = pf->getResult();
 				vector<vec2>* path = new vector<vec2>(jpsgoalres);
 
-				cout << jpsgoalres.size() << " !!!";
+				//cout << jpsgoalres.size() << " !!!";
 				
 				
-				cout << "jps+ goal spent: " << pf->getusedtime() << endl;
+				//cout << "jps+ goal spent: " << pf->getusedtime() << endl;
 				jpsgoal += pf->getusedtime();
-
-				if (jpsgoalres.size() == 0) {
-					entities->setpath((int)num, nullptr);
+				
+				if (!mode_status[flowmode])
+				{
+					if (jpsgoalres.size() == 0) {
+						entities->setpath((int)num, nullptr);
+					}
+					else {
+						entities->setpath((int)num, path);
+						destlist[num] = { path->at(0).x , path->at(0).y, num };
+					}
 				}
 				else {
-					entities->setpath((int)num, path);
-					destlist[num] = { path->at(0).x , path->at(0).y, num };
+					entities->clearvelacc();
+					entities->reached[num] = false;
+					vector<vec2> temp = f->getpath(x, y);
+					vector<vec2> *path = new vector<vec2>(temp);
+
+					if (temp.size() == 0) {
+						entities->setpath((int)num, nullptr);
+					}
+					else {
+						entities->setpath((int)num, path);
+						
+					}
+					//entities->setpath((int)num, )
+					destlist[num] = { (float)clickposx,(float)clickposy, num };
 				}
-				
 
 			}
 
 		}
 
-		textmanager->addText(0, "astar     spent: " + to_string(astartotal), vec4(0, 1, 1, 1), vec2(800, 950), 0.3f);
-		textmanager->addText(1, "jps+      spent: " + to_string(jpstotal), vec4(0, 1, 1, 1), vec2(800, 975), 0.3f);
-		textmanager->addText(2, "jps+ goal spent: " + to_string(jpsgoal), vec4(0, 1, 1, 1), vec2(800, 1000), 0.3f);
+		textmanager->addText(0, "astar     spent: " + to_string(astartotal), vec4(0, 1, 1, 1), vec2(800 * zoomy, 950 * zoomx), 0.3 * zoomx);
+		textmanager->addText(1, "jps+      spent: " + to_string(jpstotal), vec4(0, 1, 1, 1), vec2(800 * zoomy, 975 * zoomx), 0.3 * zoomx);
+		textmanager->addText(2, "jps+ goal spent: " + to_string(jpsgoal), vec4(0, 1, 1, 1), vec2(800 * zoomy, 1000 * zoomx), 0.3 * zoomx);
+		textmanager->addText(3, "flowfield spent: " + to_string(flowspent), vec4(0, 1, 1, 1), vec2(800 * zoomy, 925 * zoomx), 0.3 * zoomx);
 		cout << "jps   : " << jpstotal << endl;
 		cout << "jps + goal : " << jpsgoal << endl;
 		cout << "astar : " << astartotal << endl;
-		for (auto &[x, y, num] : destlist) {
+		cout << "flowfield:" << flowspent << endl;
+		/*for (auto &[x, y, num] : destlist) {
 			cout << x << " " <<  y << " " << num << endl;
 		}
 		cout << endl;
 		for (auto& [x, y, num] : entitylist) {
 			cout << x << " " << y << " " << num << endl;
-		}
+		}*/
 	}
 	if (button == GLFW_MOUSE_BUTTON_2 && action == GLFW_RELEASE) {
 		cout << "rt rel   x : " << mousex << "y : " << mousey << endl;
@@ -593,6 +699,14 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 }
 
 void makeEntities() {
+	/*srand(time(nullptr));
+	for (int i = 0; i < 100; i++) {
+		int x = rand() % 1024;
+		int y = rand() % 1024;
+		entitylist.push_back({ (float)x, (float)y, (float)i });
+	}*/
+
+	/*
 	entitylist.push_back({ 330, 200 , 0 });
 	entitylist.push_back({ 330, 400 , 1 });
 	entitylist.push_back({ 330, 600 , 2 });
@@ -613,5 +727,15 @@ void makeEntities() {
 	entitylist.push_back({ 216, 604 , 17 });
 	entitylist.push_back({ 621, 500 , 18 });
 	entitylist.push_back({ 240, 430 , 19 });
-	entitylist.push_back({ 123, 345 , 20 });
+	entitylist.push_back({ 123, 345 , 20 });*/
+
+	int e = 36;
+	for (int i = 0; i < e; i++) {
+		int x = 250 + 150 * cos(radians((float)i * 10));
+		int y = 250 + 150 * sin(radians((float)i * 10));
+		entitylist.push_back({ (float)x, (float)y, (float)i });
+
+	}
+
+	destlist = entitylist;
 }

@@ -7,15 +7,11 @@ jpspath::jpspath() {
 	found = false;
 	obj = this;
 	
-	
-	filesystem::path filePath("jpbakedmap.dat");
-	if (filesystem::exists(filePath))
-		loadTable();
 	//TODO: need precompute, and change to other jps that faster than astar
-	pqreserve.reserve(1000000);
+	pqreserve.reserve(100000);
 	nodes.reserve(10000000);
 	nexts.reserve(100);
-	table.reserve(1000000);
+	table.reserve(100000);
 	clusters.reserve(100000);
 	convexhulls.reserve(100000);
 	
@@ -34,27 +30,41 @@ void jpspath::changemod(bool usingbounding) {
 }
 void jpspath::loadTable() {
 	ifstream ifs;
+	
 	ifs.open("jpbakedmap.dat");
 	if (!ifs.is_open()) {
 		return;
 	}
-
+	table = vector<vector<vector<int>>>(sizex, vector<vector<int>>(sizey, vector<int>(10, 0)));
+	jps.clear();
 	string input = "";
+	string inner = "";
 	
-	istringstream iss;
+	
 
 	int idx = 0;
 	int idy = 0;
 	while (!ifs.eof()) {
-		getline(ifs, input, '|');
-		string data;
-		iss.str(input);
-		int d = 0;
-		while (getline(iss, data, ',')) {
-			table[idx][idy][d] = stoi(data);
-			d++;
+		getline(ifs, input);
+		istringstream issout;
+		issout.str(input);
+		while (getline(issout, inner, '|')) {
+			//cout << "inner : " << inner << endl;
+			string data;
+			istringstream iss;
+			iss.str(inner);
+			int d = 0;
+			while (getline(iss, data, ',')) {
+				//table[idx][idy][d] = stoi(data);
+
+				//cout << idx << "," << idy << "," << d << ":" << stoi(data) << endl;
+				table[idx][idy][d] = stoi(data);
+				if (table[idx][idy][d] == -1 && d == 8) jps.push_back(point(idx, idy));
+				d++;
+			}
+			//cout << endl;
+			idy++;
 		}
-		idy++;
 		if (idy == sizey) {
 			idx++;
 			idy = 0;
@@ -62,6 +72,8 @@ void jpspath::loadTable() {
 	}
 
 	ifs.close();
+
+	if (usingbounding) boundingcalc();
 }
 void jpspath::saveTable() {
 	ofstream ofs;
@@ -70,7 +82,7 @@ void jpspath::saveTable() {
 
 	for (int i = 0; i < sizex; i++) {
 		for (int j = 0; j < sizey; j++) {
-			for (int d = 0; d < 8; d++) {
+			for (int d = 0; d < 9; d++) {
 				ofs << table[i][j][d] << ",";
 			}
 			ofs << "|";
@@ -102,7 +114,7 @@ bool jpspath::isjumppoint(int x, int y, int dirx, int diry) {
 void jpspath::precalc() {
 	table = vector<vector<vector<int>>>(sizex, vector<vector<int>>(sizey, vector<int>(10, 0)));
 	cout << " here";
-	
+
 	jps.clear();
 
 	int num = 0;
@@ -268,7 +280,10 @@ void jpspath::precalc() {
 					dist++;
 					
 					if ((dirx != 0 && diry != 0)) { //not perfect but will not cause err
-						
+						if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
+							table[i][j][2 * (d - 4) + 1] = -(dist - 1);
+							break;
+						}
 						if (dirx == 1 && diry == 1 && ispassible(r, c, map)) {//down right
 							if ((table[r][c][0] > 0 || table[r][c][2] > 0) || table[r][c][8] != 0) {
 								table[i][j][1] = dist;
@@ -292,14 +307,14 @@ void jpspath::precalc() {
 								table[i][j][7] = dist;
 								break;
 							}
-						}if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
-							table[i][j][2 * (d - 4) + 1] = -(dist - 1);
-							break;
 						}
 						
 					}
 					if (d < 4) {
-						
+						if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
+							table[i][j][2 * d] = -(dist - 1);
+							break;
+						}
 
 						if (dirx != 0 &&
 							((ispassible(r, c + 1, map) && !ispassible(r - dirx, c + 1, map)) ||
@@ -323,9 +338,6 @@ void jpspath::precalc() {
 								//convexhulls.push_back(vector<point>({ point(i, j), point(i + 1, j), point(i + 1, j + 1), point(i, j + 1) }));
 								jps.push_back(point(r, c));
 							}
-							break;
-						}if (iswall(r, c, map) || iswall(r - dirx, c, map) || iswall(r, c - diry, map)) {
-							table[i][j][2 * d] = -(dist - 1);
 							break;
 						}
 					}
@@ -362,6 +374,7 @@ void jpspath::boundingcalc() {
 	clusters.clear();
 	convexhulls.clear();
 	cboundtable.clear();
+	
 		
 
 
@@ -443,7 +456,7 @@ void jpspath::boundingcalc() {
 		}*/
 		for (auto& p : c.second) {
 
-			int boundingsize = 15;
+			int boundingsize = 10;
 			int minx = std::max(0, p.x - boundingsize);
 			int miny = std::max(0, p.y - boundingsize);
 			int maxx = std::min(sizex - 1, p.x + boundingsize);
@@ -492,12 +505,11 @@ void jpspath::boundingcalc() {
 				table[p.x][p.y][9] = cnum;
 			}
 		}*/
-
-		convexhulls.push_back(vector<point>({ p, point(p.x + 1, p.y), point(p.x + 1, p.y + 1), point(p.x, p.y + 1) }));
+		
+		convexhulls.push_back(vector<point>({ p}));
 		if (table[p.x][p.y][9] != 0) {
 			int cnum = table[p.x][p.y][9];
 			jumpcluster[cnum].emplace_back(p);
-			table[p.x][p.y][9] = cnum;
 		}
 	}
 
@@ -1051,7 +1063,7 @@ void jpspath::calculate() {
 	/*function<bool(Node*, Node*)> f = [](Node* a, Node* b) -> bool {
 		return *a > *b;
 	};
-	priority_queue < Node*, vector<Node*>, function<bool(Node*, Node*)>> pq(f, move(pqreserve));*/ //pqreserve must be vector<Node*>
+	priority_queue < Node*, vector<Node*>, function<bool(Node*, Node*)>> pq(f, move(pqreserve)); *///pqreserve must be vector<Node*>
 	//pq = priority_queue < Node, vector<Node>, greater<Node>>();
 	//nodes.reserve(1000000);
 	
@@ -1119,7 +1131,9 @@ void jpspath::calculate() {
 
 /// <summary>
 /// pointer version of calc. same speed as above, works well
+/// turning on heap profiling will make this thing dramatically slow : 350ms
 /// </summary>
+/// 
 /*void jpspath::calculate() {
 	nodes.clear();
 	nexts.clear();
@@ -1209,7 +1223,6 @@ void jpspath::calculate() {
 				pq.push(node);
 			}
 		}
-
 
 	}
 }*/

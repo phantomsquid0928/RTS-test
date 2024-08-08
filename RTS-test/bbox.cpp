@@ -40,7 +40,7 @@ void bbox::create() { //TODO : refactoring of vertices, indices needed
 
 		indices.insert(indices.end(), {
 			base, base + 1, base + 2,
-			base + 2, base + 1, base
+			base + 2, base + 3, base
 			});
 		
 		base += num;
@@ -126,7 +126,7 @@ void bbox::update() {
 
 		indices.insert(indices.end(), {
 			base, base + 1, base + 2,
-			base + 2, base + 1, base
+			base + 2, base + 3, base
 			});
 
 		base += num;

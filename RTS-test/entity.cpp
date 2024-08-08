@@ -16,7 +16,7 @@ inline bool ispassible(int x, int y, const vector<vector<int>>* map) { //TODO : 
 	return isvalid(x, y, map) && ((*map)[x][y] != 1 && (*map)[x][y] != 2);
 }
 
-entity::entity(const vector<array<float, 3>>& location) {
+entity::entity(const vector<array<float, 3>>& location, flowfield* f) {
 	vcode = readFile("shader/entity_vertex.glsl"); //mod
 	fcode = readFile("shader/entity_fragment.glsl");
 	
@@ -32,7 +32,8 @@ entity::entity(const vector<array<float, 3>>& location) {
 	size = 10;
 
 	this->location = &location;
-	
+	this->f = f;
+
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 	glGenBuffers(1, &IBO);
@@ -139,8 +140,11 @@ void entity::update(float tick) { //will be called per tick?
 	//apply allginment
 	//apply cohesion
 
-	//artificial potential field 적용
 
+	//flowfield movement
+	
+
+	//TODO: artificial potential field 적용?
 	for (auto& [x, y, i] : destlist) { //calc accel
 		if (x == -1) //no dest
 			continue;
@@ -152,6 +156,10 @@ void entity::update(float tick) { //will be called per tick?
 		vec2 realv = vec2(x - entitylist[i][0], y - entitylist[i][1]);
 		vec2 dirv = normalize(vec2(x - entitylist[i][0], y - entitylist[i][1])); //vector to go
 		vec2 selected = 1 > hypot(realv.x, realv.y) ? realv : dirv; //v vector maximum len 1
+		if (mode_status[flowmode]) {
+			dirv = f->getNext(point(x, y), entitylist[i][0], entitylist[i][1]);
+			selected = 2 * f->getNext(point(x, y), entitylist[i][0], entitylist[i][1]);
+		}
 		//selected = delta v = accel
 		//vec2 dir = selected;
 
@@ -166,7 +174,7 @@ void entity::update(float tick) { //will be called per tick?
 			}
 		}
 		//selected = normalize(selected);
-		for (auto &e : entitylist) {
+		for (auto& e : entitylist) {
 			if (e[2] == i) continue;
 			vec2 neighborpos = vec2(e[0], e[1]);
 			vec2 diff = curpos - neighborpos;
@@ -174,33 +182,132 @@ void entity::update(float tick) { //will be called per tick?
 			if (dist < (double)2 * size) {
 
 				vec2 vertical = vec2(cross(vec3(selected, 0), vec3(0, 0, 1)));
-				selected += (double)2 * size/ dist * normalize(diff + vertical);
-				accel[e[2]] -=  selected;
+				selected += (double)size/ dist * normalize(diff + vertical);
+				//accel[e[2]] -=  selected;
 				//velocity[e[2]] += selected;
 			}
 		}
 		accel[i] += selected;
-
+		velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i];
 	}
 
 	//RVO
-	for (auto& [x, y, i] : destlist) {
-		for (auto& [a, b, j] : entitylist) {
-			if ((int)i >= (int)j) continue;
-			//get rvo from velocity[i], velocity[j] by and apply it.
-			//
-			//currently disabled.
+	if (mode_status[rvo]) {
+		for (auto& [xa, ya, a] : entitylist) { // a
+			/*for (auto& [xb, yb, b] : entitylist) { // b
+				if ((int)a >= (int)b) continue;
+				if (hypot(xa - xb, ya - yb) > 4 * size) continue;
+				//get rvo from velocity[i], velocity[j] by and apply it.
+				//  
+				//currently disabled.
+				//get VO a~b (0)
+				//get vector a~b
+				//get vector va - vb 
+				//get theta = arcs(2r / x), x = dist (a~b)
+				//get thata between a~b, va-vb
+				//check both theta
+
+				vec2 pab = vec2(xb - xa, yb - ya);
+				vec2 vba = vec2(velocity[a] - velocity[b]);
+				float doublerad = 2 * size;
+				if ()
+			}*/
+			
+			vec2 newvel = velocity[a];
+			for (auto& [xb, yb, b] : entitylist) {
+				if (a == b) continue;
+				if (hypot(xa - xb, ya - yb) > 5 * size) {
+					continue;
+				}
+				vec2 avoidvel = [&](int xa, int xb, int ya, int yb, int a, int b) -> vec2 {
+					vec2 pab = vec2(xb - xa, yb - ya);
+					vec2 vba = vec2(velocity[a] - velocity[b]);
+					float doublerad = 2 * size;
+
+					vec2 w = vba - pab / 2.0f;
+					float lenw = length2(w);
+
+					if (lenw < doublerad) return normalize(w) * (length(w) - doublerad);
+					return vba;
+				}(xa, xb, ya, yb, a, b);
+				newvel -= avoidvel * 4 * tick;
+			}
+			velocity[a] = newvel;
 		}
 	}
 
+	// u have to make this smoother then before
+	if (mode_status[flowmode]) {
+		for (auto& [x, y, i] : entitylist) {
+			if (abs(destlist[i][0] - x) < 2 * size && abs(destlist[i][1] - y) < 2 * size || reached[i] == true) {
+				//entitylist[i] = { destlist[i][0], destlist[i][1], i };
+				if (paths[i] != nullptr) {
+					delete paths[i];
+					paths[i] = nullptr;
+				}
+				vec2 oldloc = vec2(x, y);
+				reached[i] = true;
+				
+				if (length2(velocity[i]) > 100) {
+					velocity[i] = 10 * normalize(velocity[i]);
+				}
+				vec2 newloc = oldloc + 10 * velocity[i] * tick;
 
-	for (auto& [x, y, i] : destlist) { //move
+				entitylist[i] = { newloc.x, newloc.y, i };
+				continue;
+			}
+			//velocity[i] = 0.9 * velocity[i] + 80 * f->getNext(point(destlist[i][0], destlist[i][1]), (int)x, (int)y) + 30 * accel[i];
+			if (length2(velocity[i]) > 100) {
+				velocity[i] = 10 * normalize(velocity[i]);
+			}
+			vec2 oldloc = vec2(x, y);
+			//vec2 newloc = oldloc + 10 * accel[i] * tick + 70 * f->getNext((int)x, (int)y) * tick;
+			//vec2 newloc = oldloc + 0.6 * (80 * f->getNext(point(destlist[i][0], destlist[i][1]), (int)x, (int)y) + 30 * accel[i]) * tick;
+			
+			vec2 newloc = oldloc + 10 * velocity[i] * tick;
+			entitylist[i] = { newloc.x, newloc.y, i };
+			if (hypot(velocity[i].x, velocity[i].y) > 0.01) {
+				float res = dot(vec2(0, 1), normalize(velocity[i]));
+
+				rotations[i] = velocity[i].x > 0 ? acos(res) : -acos(res);
+			}
+		}
+		return;
+	}
+	
+	for (auto& [x, y, i] : destlist) { //move by pathmode
+		//if path is allocated for this entitiy and entity is far from destination
 		
 		if (hypot(entitylist[i][0] - x, entitylist[i][1] - y) > 1.2 * size && curpathidx[i] != -1) { //size수정 필요?
+		/*bool condition = true;
+		if (curpathidx[i] != -1) {
+			if (hypot(entitylist[i][0] - x, entitylist[i][1] - y) > 1.2 * size) condition = true;
+			if (curpathidx[i] > 0 && curpathidx[i] != paths[i]->size()) {
+				float nx = paths[i]->at(curpathidx[i] - 1).x;
+				float ny = paths[i]->at(curpathidx[i] - 1).y;
+				if (hypot(entitylist[i][0] - nx, entitylist[i][1] - ny) <= 1.2 * size) condition = false;
+			}
+		//	if (curpathidx[i] > 0 && curpathidx[i] != paths[i]->size()) {
+		//		vec2 curloc = vec2(entitylist[i][0], entitylist[i][1]);
+		//		vec2 pathslice = paths[i]->at(curpathidx[i]) - paths[i]->at(curpathidx[i] - 1);
+		//		vec2 relativeloc = curloc - paths[i]->at(curpathidx[i] - 1);
+		//		if (dot(pathslice, relativeloc) < length(pathslice)) { // not reached
+		//			condition = false;
+		//		}
+		//	}
+		}
+		else condition = false;
+
+		
+		if (condition) {*/
+			
 			//sqrt(pow(entitylist[i][0] - x, 2) + pow(entitylist[i][1] - y, 2)) > 11) {
 			reached[i] = false;
-
-			velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i]; //v = friction * v + delta v
+			///velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i]; //v = friction * v + delta v
+			if (length2(velocity[i]) > 100) {
+				velocity[i] = 10 * normalize(velocity[i]);
+			}
+			
 			vec2 oldloc = vec2(entitylist[i][0], entitylist[i][1]);
 			//vec2 newloc = oldloc + 70 * selected * tick; //time slice by fps
 			vec2 newloc = oldloc + 10 * velocity[i] * tick; //60 is velocity... friction * v * t + (a) * t^2
@@ -218,11 +325,14 @@ void entity::update(float tick) { //will be called per tick?
 			
 			rotations[i] = velocity[i].x > 0 ? acos(res) : -acos(res);
 		}
-		else {
+		else { //no path or reached.
 			reached[i] = true;
 			
-			velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i]; //v = v + delta v
+			//velocity[i] = 0.9 * velocity[i] + 1.1 * accel[i]; //v = v + delta v
 
+			if (length2(velocity[i]) > 100) {
+				velocity[i] = 10 * normalize(velocity[i]);
+			}
 			vec2 oldloc = vec2(entitylist[i][0], entitylist[i][1]);
 			//vec2 newloc = oldloc + 70 * selected * tick; //time slice by fps
 			vec2 newloc = oldloc + 10 * velocity[i] * tick; //60 is velocity... vold * t + a * t^2
@@ -234,10 +344,17 @@ void entity::update(float tick) { //will be called per tick?
 			//entitylist[(int)i] = { newloc.x, newloc.y, i };
 			entitylist[(int)i] = { newloc.x, newloc.y, i };
 			 //newloc.x 로 할지 x로 할지 생각해야 아님 다른 방법 필요
+
+			//if ()
 			x = newloc.x;
 			y = newloc.y;
 
-			float res = dot(vec2(0, 1), normalize(velocity[i]));
+			if (hypot(velocity[i].x, velocity[i].y) > 0.01) {
+				float res = dot(vec2(0, 1), normalize(velocity[i]));
+
+				rotations[i] = velocity[i].x > 0 ? acos(res) : -acos(res);
+			}
+			
 
 			
 			
@@ -312,4 +429,7 @@ int entity::getpathidx(int offset) {
 		return curpathidx[offset];
 	}
 	return this->curpathidx[offset]++;
+}
+void entity::clearvelacc() {
+
 }

@@ -13,7 +13,7 @@ path::path() {
 
 	cout << "entity shader : " << shaderProgram << endl;
 
-	size = 3;
+	size = 1;
 
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);

@@ -2,6 +2,7 @@
 #include "shader/shader.h"
 #include "object.h"
 #include "path.h"
+#include "flowfield.h"
 
 /// <summary>
 /// class for bulk-make similar entities at once.
@@ -10,7 +11,7 @@ class entity : public shader, object //for 1 tick bulk load changed location, gl
 {
 public:
 	entity();
-	entity(const vector<array<float, 3>>& locations);
+	entity(const vector<array<float, 3>>& locations, flowfield * f);
 	~entity();
 	void create();
 	void render(); 
@@ -19,8 +20,15 @@ public:
 	void setpath(int offset, vector<vec2>* path);
 	int getpathidx(int offset);
 	int getcurpathidx(int offset);
-	vector<vector<vec2>*> getentitypaths();
+	vector<vector<vec2>*> getentitypaths(); 
+	bitset<100> reached;
+	void clearvelacc();
+
 private:
+	//flowfield values
+	flowfield* f;
+
+	//steering values
 	int size;
 	string fcode2;
 	vector<float> vertices;
@@ -33,9 +41,8 @@ private:
 
 	//vector<vec2> location; entitylist can do same feature.
 
+	//path values
 	vector<vector<vec2>*> paths;
 	vector<int> curpathidx;
-	bitset<100> reached;
-	path pathobj;
+	
 };
-
