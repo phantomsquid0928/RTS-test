@@ -14,11 +14,13 @@ public:
 	void render();
 	void update(); //will update positon all
 	void setpath(vector<vec2> pathlist);
+	void settrail(vector<vec2> pathlist);
 private:
 	int size;
 	string fcode2;
 	vector<float> vertices;
 	vector<unsigned int> indices;
 	vector<vec2> pathlist;
+	vector<vec2> traillist;
 };
 

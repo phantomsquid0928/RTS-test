@@ -42,14 +42,14 @@ struct Node {
 struct flownode {
 	int x, y;
 	point bestdir;
-	bool isstart;
+	int isstart;
 	int cost;
 	int bestcost;
 	bool visited;
-	flownode(int x, int y, point bestdir = point(0, 0), int cost = 1, int bestcost = INT_MAX, bool isstart = false, bool visited = false)
-		: x(x), y(y), bestdir(bestdir), cost(cost), bestcost(bestcost), isstart(false), visited(false)
+	flownode(int x, int y, point bestdir = point(0, 0), int cost = 1, int bestcost = INT_MAX, int isstart = 0, bool visited = false)
+		: x(x), y(y), bestdir(bestdir), cost(cost), bestcost(bestcost), isstart(0), visited(false)
 	{};
-	flownode() : x(0), y(0), bestdir(point(0, 0)), cost(1), bestcost(INT_MAX), isstart(false), visited(false) {};
+	flownode() : x(0), y(0), bestdir(point(0, 0)), cost(1), bestcost(INT_MAX), isstart(0), visited(false) {};
 };
 class pathfinders
 {

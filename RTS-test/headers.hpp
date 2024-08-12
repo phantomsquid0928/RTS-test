@@ -27,23 +27,23 @@ using namespace std;
 using namespace glm; 
 
 static const int fixedx = 1024;
-static const int fixedy = 1024;
+static const int fixedy = 2048;
 
 static const int sizex = 1024; //5;    //const
-static const int sizey = 1024;// 9;
+static const int sizey = 2048;// 9;
 
 static const float zoomx = (float)sizex / fixedx;
 static const float zoomy = (float)sizey / fixedy;
 
 static const int cellsize = 1;
-static const string mapfile = "map.txt";//"map4096.txt";
+static const string mapfile = "map2048.txt";//"map4096.txt";
 
 static volatile double nowtime;
 static volatile double prevtime;
 
 const int keys_len = 8;
 const int mouse_len = 4;
-const int mode_len = 3;
+const int mode_len = 5;
 
 typedef enum keys : int {
 	ESC, S, LCTRL, n1, n2, n3, n4, LALT
@@ -58,7 +58,7 @@ typedef enum mousemotion : int {
 }mousemotion;
 
 typedef enum mode : int {
-	flowmode, pathmode, rvo
+	flowmode, pathmode, rvo, trace, showpath
 }mode;
 namespace input {
 	extern int mousex;

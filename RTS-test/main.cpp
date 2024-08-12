@@ -206,7 +206,7 @@ int main() {
 	//sizey = 1024;
 	loadMap();
 
-	double usedtime = 0;
+	double usedtime;
 	filesystem::path filePath("jpbakedmap.dat");
 	if (filesystem::exists(filePath)) {
 		cout << "existing, loading precalculated table. if u changed mapsize, then discard that file";
@@ -266,17 +266,22 @@ int main() {
 	walls = new wall();
 	walls->create();
 
+	mode_status[showpath] = true;
+	mode_status[trace] = true;
 	entities = new entity(entitylist, f);
 	entities->create();
 
 	mode_status[rvo] = true;
-	int e = 36;
+	//
+	
+
+	int e = 60;
 	for (int i = 0; i < e; i++) {
 		int x = entitylist[i][0];
 		int y = entitylist[i][1];
 
-		int destx = 250 + 150 * cos(radians((float)10 * i + 180));
-		int desty = 250 + 150 * sin(radians((float)10 * i + 180));
+		int destx = 500 + 200 * cos(radians((float)6 * i + 180));
+		int desty = 1000 + 200 * sin(radians((float)6 * i + 180));
 
 		vector<vec2>* path = new vector<vec2>();
 		path->push_back(vec2(x, y));
@@ -350,18 +355,20 @@ void tick(int * count) { //will update entities location by calling entities.upd
 	bool changed = false;
 
 	entities->update(delta);
-	for (auto path : entities->getentitypaths()) { // not good
-		if (path == nullptr) {
-			i++;
-			continue;
-		}
-		p->setpath(*path);
+	
+	auto t = entities->gettrailpath();
+	auto path = entities->getentitypaths();
+	for (int i = 0; i < entitylist.size(); i++) { // not good
+		
+		if (mode_status[showpath] && path[i] != nullptr)
+			p->setpath(*path[i]);
+		if (mode_status[trace] && selected[i])
+			p->settrail(*t[i]);
 
 		changed = true;
 		p->render();
-		i++;
-		
 	}
+
 	if (changed) recenttime = 0;
 }
 
@@ -456,8 +463,10 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 		keys_status[LCTRL] = RELEASE;
 		
 		if (j) {
+			double usedtime = 0;
 			j->precalc();
-
+			usedtime = j->getusedtime();
+			textmanager->addText(5, "precalc time was : " + to_string(usedtime), vec4(0, 1, 1, 1), vec2(10 * zoomx, 975 * zoomy), 0.3f * zoomx);
 			auto res = j->getctable();
 			auto jps = j->getjp();
 
@@ -504,7 +513,10 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 	
 		keys_status[LALT] = RELEASE;
 		if (j) {
+			double usedtime = 0;
 			j->precalc();
+			usedtime = j->getusedtime();
+			textmanager->addText(5, "precalc time was : " + to_string(usedtime), vec4(0, 1, 1, 1), vec2(10 * zoomx, 975 * zoomy), 0.3f * zoomx);
 
 			auto res = j->getctable();
 			auto jps = j->getjp();
@@ -547,6 +559,36 @@ void keyhandler(GLFWwindow* window, int key, int code, int action, int mode) {
 		//keys_status[ESC] = RELEASE;
 		mode_status[rvo] ^= true;
 	}
+	if (key == GLFW_KEY_T && action == GLFW_RELEASE) {
+		int e = 60;
+		for (int i = 0; i < e; i++) {
+			int x = entitylist[i][0];
+			int y = entitylist[i][1];
+			vec2 mid = vec2(500, 1000);
+			int destx = mid.x - (x - mid.x);
+			int desty = mid.y -  (y - mid.y);
+
+			//int destx = 500 + 150 * cos(radians((float)10 * i + 180));
+			//int desty = 1000 + 150 * sin(radians((float)10 * i + 180));
+
+			vector<vec2>* path = new vector<vec2>();
+			path->push_back(vec2(x, y));
+			path->push_back(vec2(destx, desty));
+
+			entities->setpath(i, path);
+		}
+		
+	}
+	if (key == GLFW_KEY_Y && action == GLFW_RELEASE) {
+		cout << (mode_status[trace] == false ? "tracer on" : "tracer off") << endl;
+		//keys_status[ESC] = RELEASE;
+		mode_status[trace] ^= true;
+	}
+	if (key == GLFW_KEY_P && action == GLFW_RELEASE) {
+		cout << (mode_status[showpath] == false ? "path on" : "path off") << endl;
+		//keys_status[ESC] = RELEASE;
+		mode_status[showpath] ^= true;
+	}
 	
 }
 void mousehandler(GLFWwindow* window, double xpos, double ypos) { //움직일때만 콜백이구만
@@ -580,7 +622,7 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 		clickposy = mousey; //depr
 		cout << "rt click x : " << mousex << "y : " << mousey << endl;
 		mouse_status[rightmouse] = PRESS;
-
+		entities->cleartrail();
 		double astartotal = 0;
 		double jpstotal = 0;
 		double jpsgoal = 0;
@@ -589,8 +631,9 @@ void clickhandler(GLFWwindow* window, int button, int action, int mods) {
 		pf->setend(vec2(clickposx, clickposy));
 		pf->calculate();
 		flowspent = pf->getusedtime();
-
+		
 		for (auto& [x, y, num] : entitylist) {
+			
 			if (selected[num]) {
 				//destlist[num] = {(float)clickposx, (float)clickposy, num};
 				//printf("%d 's direction changed to %d %d", (int)num, clickposx, clickposy);
@@ -729,10 +772,10 @@ void makeEntities() {
 	entitylist.push_back({ 240, 430 , 19 });
 	entitylist.push_back({ 123, 345 , 20 });*/
 
-	int e = 36;
+	int e = 60;
 	for (int i = 0; i < e; i++) {
-		int x = 250 + 150 * cos(radians((float)i * 10));
-		int y = 250 + 150 * sin(radians((float)i * 10));
+		int x = 500 + 200 * cos(radians((float)i * 6));
+		int y = 1000 + 200 * sin(radians((float)i * 6));
 		entitylist.push_back({ (float)x, (float)y, (float)i });
 
 	}

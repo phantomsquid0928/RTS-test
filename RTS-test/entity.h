@@ -7,6 +7,14 @@
 /// <summary>
 /// class for bulk-make similar entities at once.
 /// </summary>
+/// 
+struct vo {
+	int owner;
+	vec2 position;
+	vec2 midpos;
+	vec2 left;
+	vec2 right;
+};
 class entity : public shader, object //for 1 tick bulk load changed location, glsubdata with vector <- will make performance better.
 {
 public:
@@ -21,9 +29,11 @@ public:
 	int getpathidx(int offset);
 	int getcurpathidx(int offset);
 	vector<vector<vec2>*> getentitypaths(); 
+	vector<vector<vec2>*> gettrailpath();
 	bitset<100> reached;
 	void clearvelacc();
-
+	inline float det(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; };
+	void cleartrail();
 private:
 	//flowfield values
 	flowfield* f;
@@ -43,6 +53,7 @@ private:
 
 	//path values
 	vector<vector<vec2>*> paths;
+	vector<vector<vec2>*> poopaths;
 	vector<int> curpathidx;
 	
 };

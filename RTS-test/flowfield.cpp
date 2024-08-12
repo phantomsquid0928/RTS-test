@@ -83,7 +83,7 @@ void flowfield::calculate() { //call once and make path for entities.
 	for (auto& [x, y, i] : destlist) {
 		found = false;
 		if (selected[i]) {
-			info.get((int)entitylist[i][0], (int)entitylist[i][1]).isstart = true;
+			info.get((int)entitylist[i][0], (int)entitylist[i][1]).isstart++;
 			cnt++;
 		}
 		if (fieldinfos.count(point(x, y))) {
@@ -120,12 +120,12 @@ void flowfield::calculate() { //call once and make path for entities.
 	genintegrate();
 	genflow();
 
-	for (int i = minx; i < minx + 20; i++) {
+	/*for (int i = minx; i < minx + 20; i++) {
 		for (int j = miny; j < miny + 20; j++) {
-			cout << fieldinfos[end].get(i, j).bestdir.x <<"," << fieldinfos[end].get(i, j).bestdir.y << " ";
+			cout << fieldinfos[end].get(i, j).bestdir.x << "," << fieldinfos[end].get(i, j).bestdir.y << " ";
 		}
 		cout << endl;
-	}
+	}*/
 }
 inline double flowfield::heuristic(int ax, int ay, int bx, int by) {
 	//return abs(a.x - b.x) + abs(a.y - b.y);
@@ -188,23 +188,21 @@ void flowfield::genintegrate() { //is time complexity okay???? seems dijkstra...
 	int visited = 0;
 	//bool lv = false;
 	bool afterembark = false;
+
 	while (true) {
 		
 		while (!q.empty()) {
-			flownode &cur = f.get(q.front().x, q.front().y);
+			
 			//if (afterembark) cout << cur.x << ":" << cur.y << endl;
-			if (cur.x == 0 && cur.y == 0) {
+			if (q.front().x == 0 && q.front().y == 0) {
 				q.pop();
 				continue;
 			}
+			flownode &cur = f.get(q.front().x, q.front().y);
 			q.pop();
 			if (cur.visited) continue;
 			cur.visited = true;
-			if (cur.isstart) {
-				cur.isstart = false;
-				visited++;
-			}
-
+			
 			for (int dir = 0; dir < directions.size(); dir++) {
 				point d = directions[dir];
 				//if (!ispassible(cur.x + d.x, cur.y + d.y, map)) continue; //cheat
@@ -222,7 +220,10 @@ void flowfield::genintegrate() { //is time complexity okay???? seems dijkstra...
 				
 
 				//if neighbor was embarked so info was omitted.
-				
+				if (neighbor.isstart) {
+					neighbor.isstart--;
+					visited++;
+				}
 				if (neighbor.cost == INT_MAX) continue; //useless when uses map as cheat sheet
 				int nextcost = neighbor.cost + cur.bestcost + heuristic(cur.x, cur.y, end.x, end.y);
 				if (nextcost < neighbor.bestcost) {
@@ -230,11 +231,11 @@ void flowfield::genintegrate() { //is time complexity okay???? seems dijkstra...
 					/*if (afterembark) {
 						cout << "neighbor is : " << neighbor.x << " : " << neighbor.y << endl;
 					}*/
-					if (!f.isbound(cur.x + d.x, cur.y + d.y) && !neighbor.isstart && neighbor.cost != INT_MAX) {
+					if (!f.isbound(cur.x + d.x, cur.y + d.y) && !neighbor.visited) {
 						//if (neighbor.lvflip != lv) continue; //;?
 						//if (afterembark) cout << "reached end" << cur.x + d.x << ":" << cur.x + d.y << endl;
 
-						candidate.push(point(neighbor.x, neighbor.y));
+						candidate.emplace(point(neighbor.x, neighbor.y));
 						candidatedir[dir] = 1;
 						continue;
 					}
@@ -243,10 +244,13 @@ void flowfield::genintegrate() { //is time complexity okay???? seems dijkstra...
 				
 			}
 		}
-		if (visited == f.startscnt) {
+		if (visited >= f.startscnt) {
 			cout << "found!!" << endl;
 			break;
 		}
+		/*if (firstminx >= f.minx && firstminy >= f.miny && firstmaxx <= f.maxx && firstmaxy <= f.maxy) {
+			break;
+		}*/
 		if (candidate.empty()) {
 			cout << "candidate empty" << endl;
 			break; //no path... for some target?
@@ -384,7 +388,7 @@ vector<vec2> flowfield::getpath(int x = -1, int y = -1) {//setstart then get spe
 	//path.emplace_back(vec2(cur.x, cur.y));
 
 	auto f = fieldinfos[end];
-	cout << "CALLED" << endl;
+	//cout << "CALLED" << endl;
 	while (true) {
 		if (cur == end) break;
 		//cout << cur.x << cur.y << endl;

@@ -107,5 +107,5 @@ void wall::update() {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 mat4 wall::getaabb() {
-	return mat4(1.0f);
+
 }
